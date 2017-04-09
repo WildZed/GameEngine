@@ -196,19 +196,11 @@ class CollisionKeyMovementStyle( KeyMovementStyle ):
         if newPos == pos:
             return pos
 
-        viewPort = self.viewPort
         moveObject = self.moveObject
-        xoff = 0
+        offset = newPos - pos
 
-        if None is not moveObject and not moveObject.left:
-            xoff = moveObject.width
-
-        offSetPos = moveObject.getOffSetPos( viewPort.camera )
-        footViewPortPos = offSetPos + Point( xoff, moveObject.height )
-
-        print( "footViewPortPos %s" % footViewPortPos )
-
-        if viewPort.collisionAtPoint( footViewPortPos ):
+        if not moveObject.collidesWithColour( self.viewPort, offset ) \
+           or moveObject.collidesWithColour( self.viewPort ):
             newPos = pos
 
         return newPos

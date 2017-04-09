@@ -2,6 +2,10 @@
 # Geometry
 
 
+
+import copy
+
+
 class Point:
     def __init__( self, posOrX = None, y = None ):
         if y is not None:
@@ -29,6 +33,23 @@ class Point:
             point.y += pointOrNum
 
         return point
+
+
+    def __sub__( self, pointOrNum ):
+        point = Point( self )
+
+        if isinstance( pointOrNum, Point ):
+            point.x -= pointOrNum.x
+            point.y -= pointOrNum.y
+        else:
+            point.x -= pointOrNum
+            point.y -= pointOrNum
+
+        return point
+
+
+    def __neg__( self ):
+        return Point( -self.x, -self.y )
 
 
     def __iadd__( self, pointOrNum ):

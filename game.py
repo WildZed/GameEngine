@@ -23,6 +23,7 @@ class Game:
         self.fpsClock = pygame.time.Clock()
         self.drawOrder = None
         self.cameraUpdates = None
+        self.debugDraw = False
 
         pygame.display.set_caption( name )
         pygame.display.set_icon( pygame.image.load( icon ) )
@@ -41,25 +42,6 @@ class Game:
     def terminate( self ):
         pygame.quit()
         sys.exit()
-
-
-    def loadImages( self ):
-        images = ImageStore()
-
-        images.load( 'man', 'LR' )
-        images.load( 'bush' )
-        images.load( 'ingredients store' )
-        images.load( 'jumpscare monster' )
-        images.load( 'money' )
-        images.load( 'shop', range( 1, 4 ) )
-        images.load( 'arrow', range( 1, 4 ) )
-
-        return images
-
-
-    def loadSounds( self, soundFiles ):
-        for soundFile in soundFiles:
-            pygame.mixer.music.load( soundFile )
 
 
     def setDrawOrder( self, *args ):
@@ -91,17 +73,22 @@ class Game:
         if event.type == QUIT:
             self.terminate()
             self.running = False
-        elif event.type == KEYUP:
-            if event.key == K_ESCAPE:
+        # elif KEYDOWN == event.type:
+        #     if K_p == event.key:
+        #         self.debugDraw = True
+        elif KEYUP == event.type:
+            if K_ESCAPE == event.key:
                 self.terminate()
-        elif event.type == MOUSEBUTTONDOWN:
+            elif K_p == event.key:
+                self.debugDraw = not self.debugDraw
+        elif MOUSEBUTTONDOWN == event.type:
             # Remember position.
             self.clickPos = Point( event.pos )
-        elif event.type == MOUSEBUTTONUP:
+        elif MOUSEBUTTONUP == event.type:
             # If clickPos nearby event.pos.
             dragPos = Point( event.pos )
 
-            if viewPort.positionNear( dragPos, self.clickPos, self.clickDragLimit ):
+            if self.viewPort.positionNear( dragPos, self.clickPos, self.clickDragLimit ):
                 self.dragPos = None
             else:
                 self.dragPos = dragPos
@@ -136,7 +123,7 @@ class Game:
         viewPort.drawBackGround( gameMap.backGroundColour )
 
         # Draw all the map objects.
-        gameMap.draw( viewPort, self.drawOrder )
+        gameMap.draw( viewPort, self.drawOrder, debugDraw=self.debugDraw )
 
         viewPort.draw()
 

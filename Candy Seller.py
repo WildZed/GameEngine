@@ -4,10 +4,10 @@
 
 # 16th October 2016: You dream about a monster. When you wake up, it all felt so real... You prepare for another candy-selling day. You spot something green in the shop window and are sure you had seen it before... The letter 'Q' pops into your head.
 
-import random, sys, time, math, pygame, copy
+import random, sys, time, math, pygame
 from pygame.locals import *
-from geometry import *
-import viewport, game, game_map, game_dynamics
+from geometry import Point
+import viewport, game, game_map, game_dynamics, geometry
 from game_objects import *
 
 
@@ -19,6 +19,7 @@ WINWIDTH = 800 # width of the program's window, in pixels
 WINHEIGHT = 800 # height in pixels
 
 BACKGROUND_COLOUR = (211, 211, 211)
+SHOP_FLOOR_COLOUR = (240, 180, 211)
 RED = (255, 0, 0)
 # PINK = (255, 105, 180)
 
@@ -48,7 +49,7 @@ class CandySeller( game.Game ):
         self.setDrawOrder( 'Shop', 'Arrow', 'Bush', 'Coin', 'Player', 'Score', 'Monster' )
         self.setCameraUpdates( 'Shop', 'Arrow', 'Bush', 'Coin' )
         self.setCursor()
-        self.loadSounds( ( 'Money Ping.mp3', ) )
+        viewPort.loadMusic( 'Money Ping.mp3' )
 
 
     # Per game initialisation.
@@ -86,27 +87,29 @@ class CandySeller( game.Game ):
         gameMap.setImageStore( images )
 
         gameMap.createScene( 'shops', BACKGROUND_COLOUR )
-        gameMap.createScene( 'insideShop1', BACKGROUND_COLOUR )
 
-        # Storing game objects.
+        # Create scene objects.
 
         # Start off with some shops on the screen.
-        for shopNum in range( 1, 4 ):
-            gameMap.addObject( Shop( images.shops[shopNum], SHOPSIZE, Point( ( shopNum - 1 ) * 320, 0 ) ) )
+        self.createShops( gameMap )
 
         # Start off with some bushes on the screen.
         gameMap.addObject( Bush( images.bush, BUSHSIZE, Point( -100, 400 ) ) )
         gameMap.addObject( Bush( images.bush, BUSHSIZE, Point( 1000, 400 ) ) )
 
         # Start off with some arrows on the screen.
-        for arrowNum in range( 1, 4 ):
-            gameMap.addObject( Arrow( images.arrows[arrowNum], ARROWSIZE, Point( ( arrowNum - 1 ) * 320 + 80, 550 ) ) )
+        self.createArrows( gameMap )
 
         # Start off with some money on the screen.
         self.createCoins( gameMap, 4 )
 
-        gameMap.addOverlay( Score( viewPort.basicFont, Point( viewPort.width - 100, 40 ), self.moneyScore ) )
+        gameMap.createScene( 'insideShop1', SHOP_FLOOR_COLOUR )
+        gameMap.changeScene( 'insideShop1' )
+        self.createCoins( gameMap, 4 )
 
+        gameMap.changeScene( 'shops' )
+
+        gameMap.addOverlay( Score( viewPort.basicFont, Point( viewPort.width - 100, 40 ), self.moneyScore ) )
         gameMap.addPlayer( self.createPlayer() )
 
         return gameMap
@@ -120,12 +123,22 @@ class CandySeller( game.Game ):
         playerStartPos = Point( viewPort.halfWidth, viewPort.halfHeight )
 
         # Sets up the movement style of the player.
-        # playerBounds = Rect( Point( 0, 300 ), Point( 900, 440 ) )
-        # moveStyle = BoundedKeyMovementStyle( playerBounds )
-        moveStyle = game_dynamics.CollisionKeyMovementStyle( viewPort )
+        playerBounds = geometry.Rect( Point( 0, 300 ), Point( 900, 440 ) )
+        moveStyle = game_dynamics.BoundedKeyMovementStyle( playerBounds )
+        # moveStyle = game_dynamics.CollisionKeyMovementStyle( viewPort )
         moveStyle.setMoveRates( MOVERATE, BOUNCERATE )
 
         return Player( images.manL, images.manR, manSize, playerStartPos, moveStyle )
+
+
+    def createShops( self, gameMap ):
+        for shopNum in range( 1, 4 ):
+            gameMap.addObject( Shop( self.images.shops[shopNum], SHOPSIZE, Point( ( shopNum - 1 ) * 320, 0 ) ) )
+
+
+    def createArrows( self, gameMap ):
+        for arrowNum in range( 1, 4 ):
+            gameMap.addObject( Arrow( self.images.arrows[arrowNum], ARROWSIZE, Point( ( arrowNum - 1 ) * 320 + 80, 550 ) ) )
 
 
     def createCoins( self, gameMap, num ):
@@ -226,13 +239,12 @@ class CandySeller( game.Game ):
 
             for ii in range( len( money ) - 1, -1, -1 ):
                 coin = money[ii]
-                # viewPort.drawRect( coin.rect, RED )
 
                 if player.collidesWith( coin ):
                     # A player/money collision has occurred.
                     del money[ii]
                     self.moneyScore += 1
-                    #pygame.mixer.music.play( loops=0, start=0.0 )
+                    viewPort.playMusic()
 
         # Update the money score.
         gameMap.score.updateScore( self.moneyScore )

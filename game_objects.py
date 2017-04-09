@@ -8,7 +8,10 @@ from pygame.locals import *
 
 # Constants.
 
-WHITE = (255, 255, 255)
+WHITE = ( 255, 255, 255 )
+RED = ( 255, 0, 0 )
+GREEN = ( 0, 255, 0 )
+BLUE = ( 0, 0, 255 )
 
 
 
@@ -52,6 +55,7 @@ class Object:
         self.pos = pos
         # The position rectangle.
         self.rect = None
+        self.colRect = None
         self.surface = None
         self.updateSurface()
         self.updateRect()
@@ -62,13 +66,13 @@ class Object:
         self.surface = pygame.transform.scale( self.image, ( self.size, self.size ) )
 
 
-    def updateRect( self, offset = ORIGIN, jitter = ORIGIN ):
+    def updateRect( self, camera = ORIGIN, jitter = ORIGIN ):
         # self.rect = self.surface.get_rect()
-        self.rect = self.getOffSetRect( offset, jitter )
+        self.rect = self.getOffSetRect( -camera, jitter )
 
 
     def getOffSetPos( self, offset = ORIGIN, jitter = ORIGIN ):
-        return Point( self.pos.x - offset.x + jitter.x, self.pos.y - offset.y + jitter.y )
+        return Point( self.pos.x + offset.x + jitter.x, self.pos.y + offset.y + jitter.y )
 
 
     def getOffSetRect( self, offset = ORIGIN, jitter = ORIGIN ):
@@ -100,6 +104,20 @@ class Object:
         return collides
 
 
+    def collidesWithColour( self, viewPort, offset = ORIGIN ):
+        xoff = 0
+
+        if self.left:
+            xoff = self.width
+
+        offSetPos = self.getOffSetPos( -viewPort.camera + offset )
+        footViewPortPos = offSetPos + Point( xoff, self.height )
+
+        # print( "footViewPortPos %s" % footViewPortPos )
+
+        return viewPort.collisionAtPoint( footViewPortPos )
+
+
     def collidesAlt( camera, pos, rect ):
         # Adjust rectangle for camera shift.
         adjustedRect = Rect( rect )
@@ -124,14 +142,18 @@ class Object:
         self.updateSurface()
 
 
-    def update( self, offset = ORIGIN, jitter = ORIGIN ):
-        self.updateRect( offset, jitter )
+    def update( self, camera = ORIGIN, jitter = ORIGIN ):
+        self.updateRect( camera, jitter )
         self.updateCollisionRect()
 
 
-    def draw( self, surface ):
+    def draw( self, surface, debugDraw = False ):
         if self.visible:
             surface.blit( self.surface, self.rect )
+
+            if debugDraw:
+                pygame.draw.rect( surface, RED, self.rect, 0 )
+                pygame.draw.rect( surface, RED, self.colRect, 0 )
 
 
     def __getattr__( self, key ):
@@ -145,12 +167,12 @@ class Object:
             elif key == 'y':
                 return self.__dict__['pos'].y
 
-            val = self.__dict__[key]
+            value = self.__dict__[key]
         except:
             raise
             # raise AttributeError( "Unrecognised Object attribute '%s' in __getattr__!" % key )
 
-        return val
+        return value
 
 
     def __setattr__( self, key, val ):
@@ -215,9 +237,9 @@ class Text( Object ):
         self.surface = self.font.render( self.text, True, self.colour )
 
 
-    def updateRect( self, offset = ORIGIN, jitter = ORIGIN ):
+    def updateRect( self, camera = ORIGIN, jitter = ORIGIN ):
         self.rect = rect = self.surface.get_rect()
-        self.rect = rect.move( -offset.x + jitter.x, -offset.y + jitter.y )
+        self.rect = rect.move( -camera.x + jitter.x, -camera.y + jitter.y )
 
 
 
@@ -228,7 +250,7 @@ class StaticText( Text ):
         Text.__init__( self, font, text, pos, colour )
 
 
-    def update( self, offset = ORIGIN, jitter = ORIGIN ):
+    def update( self, camera = ORIGIN, jitter = ORIGIN ):
         # Call the base class, but don't use the offset.
         Text.update( self )
 

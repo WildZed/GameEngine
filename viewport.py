@@ -103,7 +103,7 @@ class ViewPort:
 
     def collisionAtPoint( self, pos, obj = None ):
         # Use the object's bounding rectangle to filter the position, if provided.
-        collides = ( not obj or obj.collidesWithPoint( pos, True ) )
+        collides = ( obj is None or obj.collidesWithPoint( pos, True ) )
 
         # print "collisionAtPoint %s %s %s" % ( pos, obj.asRect(), collides )
 
@@ -125,10 +125,19 @@ class ViewPort:
         soundFilePath = 'C:/Users/Zed/Documents/Matt/Programming/' + soundFileName + '.ogg'
         pygame.mixer.init()
         # pygame.mixer.pre_init(44100, -16, 2, 2048)
-        pygame.init()
-        sounda = pygame.mixer.Sound( soundFilePath )
-        sounda.play()
+        # pygame.init()
+        sound = pygame.mixer.Sound( soundFilePath )
+        sound.play()
         # pygame.time.delay(8000)
         # ]]
+
+
+    def loadMusic( self, musicFile ):
+        pygame.mixer.music.load( musicFile )
+
+
+    def playMusic( self ):
+        pygame.mixer.music.play( loops=0, start=0.0 )
+
 
 
