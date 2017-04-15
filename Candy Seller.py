@@ -23,9 +23,6 @@ SHOP_FLOOR_COLOUR = (240, 180, 211)
 RED = (255, 0, 0)
 # PINK = (255, 105, 180)
 
-LEFT = 'left'
-RIGHT = 'right'
-
 MOVERATE = 17        # how fast the player moves
 BOUNCERATE = 6       # how fast the player bounces (large is slower)
 BOUNCEHEIGHT = 10    # how high the player bounces
@@ -126,7 +123,8 @@ class CandySeller( game.Game ):
         playerBounds = geometry.Rect( Point( 0, 300 ), Point( 900, 440 ) )
         moveStyle = game_dynamics.BoundedKeyMovementStyle( playerBounds )
         # moveStyle = game_dynamics.CollisionKeyMovementStyle( viewPort )
-        moveStyle.setMoveRates( MOVERATE, BOUNCERATE )
+        moveStyle.setMoveRate( MOVERATE )
+        moveStyle.setBounceRates( BOUNCERATE, BOUNCEHEIGHT )
 
         return Player( images.manL, images.manR, manSize, playerStartPos, moveStyle )
 

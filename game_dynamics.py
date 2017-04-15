@@ -8,6 +8,7 @@ from geometry import *
 # Constants.
 
 DEFAULT_MOVERATE = 10
+
 DEFAULT_KEYSMAP = {
     'left'  : ( K_LEFT, K_a ),
     'right' : ( K_RIGHT, K_d ),
@@ -19,6 +20,19 @@ DEFAULT_KEYSMAP = {
 
 
 class Directions:
+    DIRECTIONS = {
+        'left'  : 'horizontal',
+        'right' : 'horizontal',
+        'up'    : 'vertical',
+        'down'  : 'vertical'
+    }
+
+    AXES = {
+        'horizontal'    : ( 'left', 'right' ),
+        'vertical'      : ( 'up', 'down' )
+    }
+
+
     def __init__( self ):
         self.left = False
         self.right = False
@@ -29,11 +43,11 @@ class Directions:
 
 
     def __getattr__( self, key ):
-        if key == 'horizontal':
-            value = self.__dict__['left'] or self.__dict__['right']
-        elif key == 'vertical':
-            value = self.__dict__['up'] or self.__dict__['down']
-        elif key == 'any':
+        # if key == 'horizontal':
+        #     value = self.__dict__['left'] or self.__dict__['right']
+        # elif key == 'vertical':
+        #     value = self.__dict__['up'] or self.__dict__['down']
+        if key == 'any':
             value = self.horizontal or self.vertical
         else:
             value = self.__dict__[key]
@@ -42,12 +56,22 @@ class Directions:
 
 
     def __setattr__( self, key, value ):
-        if key in ( 'left', 'right' ):
-            self.__dict__['horizontal'] = key
-        elif key in ( 'up', 'down' ):
-            self.__dict__['vertical'] = key
+        if key in Directions.DIRECTIONS.keys():
+            self.__dict__[key] = value
+            axis = Directions.DIRECTIONS[key]
 
-        self.__dict__[key] = value
+            if value:
+                axisValue = key
+            else:
+                axisValue = False
+
+                for direction in Directions.AXES[axis]:
+                    if self.__dict__.has_key( direction ) and self.__dict__[direction]:
+                        axisValue = direction
+
+            self.__dict__[axis] = axisValue
+        else:
+            self.__dict__[key] = value
 
 
     def __getitem__( self, key ):
@@ -82,10 +106,11 @@ class MovementStyle:
 
 
 class KeyMovementStyle( MovementStyle ):
-    def __init__( self, moveRate = DEFAULT_MOVERATE, bounceRate = 0 ):
+    def __init__( self, moveRate = DEFAULT_MOVERATE, bounceRate = 0, bounceHeight = 0 ):
         self.moveBounds = None
         self.moveRate = moveRate
         self.bounceRate = bounceRate
+        self.bounceHeight = bounceHeight
         self.directions = Directions()
         self.bounce = 0
         self.dirToKeysMap = DEFAULT_KEYSMAP
@@ -107,9 +132,13 @@ class KeyMovementStyle( MovementStyle ):
         dirToKeysMap['all'] = dirToKeysMap['horizontal'] + dirToKeysMap['vertical']
 
 
-    def setMoveRates( self, moveRate, bounceRate ):
+    def setMoveRate( self, moveRate ):
         self.moveRate = moveRate
+
+
+    def setBounceRates( self, bounceRate, bounceHeight ):
         self.bounceRate = bounceRate
+        self.bounceHeight = bounceHeight
 
 
     def setMovement( self, key ):
@@ -135,16 +164,22 @@ class KeyMovementStyle( MovementStyle ):
         newPos = Point( pos )
 
         if self.moving():
-            if self.moving( 'left' ):
-                newPos.x -= self.moveRate
-            elif self.moving( 'right' ):
-                newPos.x += self.moveRate
-            if self.moving( 'up' ):
-                newPos.y -= self.moveRate
-            elif self.moving( 'down' ):
-                newPos.y += self.moveRate
+            horizontalMovement = self.moving( 'horizontal' )
+            verticalMovement = self.moving( 'vertical' )
 
-            if self.moving( 'horizontal' ) or self.bounce != 0:
+            if horizontalMovement:
+                if 'left' == horizontalMovement:
+                    newPos.x -= self.moveRate
+                else:
+                    newPos.x += self.moveRate
+
+            if verticalMovement:
+                if 'up' == verticalMovement:
+                    newPos.y -= self.moveRate
+                else:
+                    newPos.y += self.moveRate
+
+            if horizontalMovement or self.bounce != 0:
                 self.bounce += 1
 
             if self.bounce > self.bounceRate:

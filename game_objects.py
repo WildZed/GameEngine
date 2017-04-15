@@ -60,25 +60,35 @@ class Object:
         self.updateSurface()
         self.updateRect()
         self.updateCollisionRect()
+        self.attachedObjects = []
 
 
     def updateSurface( self ):
         self.surface = pygame.transform.scale( self.image, ( self.size, self.size ) )
 
 
-    def updateRect( self, camera = ORIGIN, jitter = ORIGIN ):
+    def updateRect( self, camera = ORIGIN, offset = ORIGIN ):
+        offset = offset - camera
         # self.rect = self.surface.get_rect()
-        self.rect = self.getOffSetRect( -camera, jitter )
+        self.rect = self.getOffSetRect( offset )
 
 
-    def getOffSetPos( self, offset = ORIGIN, jitter = ORIGIN ):
-        return Point( self.pos.x + offset.x + jitter.x, self.pos.y + offset.y + jitter.y )
+    def getOffSetPos( self, offset = ORIGIN ):
+        return Point( self.pos.x + offset.x, self.pos.y + offset.y )
 
 
-    def getOffSetRect( self, offset = ORIGIN, jitter = ORIGIN ):
-        offSetPos = self.getOffSetPos( offset, jitter )
+    def getOffSetRect( self, offset = ORIGIN ):
+        offSetPos = self.getOffSetPos( offset )
 
         return pygame.Rect( offSetPos.x, offSetPos.y, self.width, self.height )
+
+
+    def attachObject( self, obj ):
+        self.attachedObjects.append( obj )
+
+
+    def dettachObject( self, obj ):
+        self.attachedObjects.remove( obj )
 
 
     def updateCollisionRect( self ):
@@ -142,9 +152,16 @@ class Object:
         self.updateSurface()
 
 
-    def update( self, camera = ORIGIN, jitter = ORIGIN ):
-        self.updateRect( camera, jitter )
+    def update( self, camera = ORIGIN, offset = ORIGIN ):
+        self.updateRect( camera, offset )
         self.updateCollisionRect()
+        self.updateAttachedObjects( camera, offset )
+
+
+    def updateAttachedObjects( self, camera = ORIGIN, offset = ORIGIN ):
+        for attachedObject in self.attachedObjects:
+            offset = offset + attachedObject.pos
+            attachedObject.update( camera, offset )
 
 
     def draw( self, surface, debugDraw = False ):
@@ -154,6 +171,11 @@ class Object:
             if debugDraw:
                 pygame.draw.rect( surface, RED, self.rect, 0 )
                 pygame.draw.rect( surface, RED, self.colRect, 0 )
+
+
+    def drawAttachedObjects( self ):
+        for attachedObject in self.attachedObjects:
+            attachedObject.draw( surface, debugDraw=debugDraw )
 
 
     def __getattr__( self, key ):
@@ -216,8 +238,6 @@ class Monster( Object ):
 
 class Coin( Object ):
     def __init__( self, image, pos, size ):
-        # bounceAmount = getBounceAmount( my['bounce'], my['bouncerate'], my['bounceheight'] )
-
         Object.__init__( self, image, size, pos )
 
 
@@ -307,7 +327,7 @@ class Player( Object ):
         # currentBounce will always be less than bounceRate.
         movementStyle = self.movementStyle
         bounceRate = movementStyle.bounceRate
-        bounceHeight = bounceRate
+        bounceHeight = movementStyle.bounceHeight
 
         return int( math.sin( ( math.pi / float( bounceRate ) ) * movementStyle.bounce ) * bounceHeight )
 
@@ -317,13 +337,16 @@ class Player( Object ):
         movementStyle.setMovement( key )
 
         # Flip the player image if changed direction.
-        if movementStyle.moving( 'left' ) and self.image is not self.imageL:
-            self.left = True
-            self.swapImage( self.imageL )
-        elif movementStyle.moving( 'right' ) and self.image is not self.imageR:
-            # Flip the player image.
-            self.left = False
-            self.swapImage( self.imageR )
+        horizontalMovement = movementStyle.moving( 'horizontal' )
+
+        if horizontalMovement:
+            if 'left' == horizontalMovement and self.image is not self.imageL:
+                self.left = True
+                self.swapImage( self.imageL )
+            elif 'right' == horizontalMovement and self.image is not self.imageR:
+                # Flip the player image.
+                self.left = False
+                self.swapImage( self.imageR )
 
 
     def stopMovement( self, key ):

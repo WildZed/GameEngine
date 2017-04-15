@@ -73,9 +73,6 @@ class Game:
         if event.type == QUIT:
             self.terminate()
             self.running = False
-        # elif KEYDOWN == event.type:
-        #     if K_p == event.key:
-        #         self.debugDraw = True
         elif KEYUP == event.type:
             if K_ESCAPE == event.key:
                 self.terminate()
