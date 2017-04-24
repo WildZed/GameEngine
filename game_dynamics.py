@@ -8,7 +8,7 @@ from geometry import *
 
 # Constants.
 
-DEFAULT_MOVERATE = 10
+DEFAULT_MOVERATE = Vector( 10, 6 )
 
 DEFAULT_KEYSMAP = {
     'left'  : ( K_LEFT, K_a ),
@@ -173,15 +173,15 @@ class KeyMovementStyle( MovementStyle ):
 
             if horizontalMovement:
                 if 'left' == horizontalMovement:
-                    newPos.x -= self.moveRate
+                    newPos.x -= self.moveRate.x
                 else:
-                    newPos.x += self.moveRate
+                    newPos.x += self.moveRate.x
 
             if verticalMovement:
                 if 'up' == verticalMovement:
-                    newPos.y -= self.moveRate
+                    newPos.y -= self.moveRate.y
                 else:
-                    newPos.y += self.moveRate
+                    newPos.y += self.moveRate.y
 
             if horizontalMovement or self.bounce != 0:
                 self.bounce += 1

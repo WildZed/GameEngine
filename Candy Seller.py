@@ -23,7 +23,7 @@ SHOP_FLOOR_COLOUR = (240, 180, 211)
 RED = (255, 0, 0)
 # PINK = (255, 105, 180)
 
-MOVERATE = 17        # How fast the player moves.
+MOVERATE = Vector( 17, 10 ) # How fast the player moves in the x and y direction.
 BOUNCERATE = 6       # How fast the player bounces (large is slower).
 BOUNCEHEIGHT = 10    # How high the player bounces.
 MANSIZE = 30         # How big the man is.

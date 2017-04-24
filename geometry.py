@@ -155,6 +155,12 @@ class Rectangle:
 
 
 
+class Vector( Point ):
+    pass
+
+
+
+
 # Constants:
 
 ORIGIN = Point()
