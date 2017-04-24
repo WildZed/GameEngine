@@ -4,6 +4,7 @@
 import random, sys, time, math, pygame, copy
 from geometry import *
 from pygame.locals import *
+from game_utils import fontCache
 
 
 # Constants:
@@ -28,7 +29,8 @@ class ViewPort:
         pygame.init()
 
         self.displaySurface = pygame.display.set_mode( ( width, height ) )
-        self.basicFont = pygame.font.Font( 'freesansbold.ttf', 32 )
+        fontCache.addFont( 'basic', 'freesansbold', 32 )
+        fontCache.addFont( 'small', 'freesansbold', 22 )
 
 
     def adjustCamera( self, pos ):
@@ -122,7 +124,7 @@ class ViewPort:
 
 
     def playSound( self, soundFileName ):
-        soundFilePath = 'C:/Users/Zed/Documents/Matt/Programming/' + soundFileName + '.ogg'
+        soundFilePath = soundFileName + '.ogg'
         pygame.mixer.init()
         # pygame.mixer.pre_init(44100, -16, 2, 2048)
         # pygame.init()
@@ -137,7 +139,12 @@ class ViewPort:
 
 
     def playMusic( self ):
-        pygame.mixer.music.play( loops=0, start=0.0 )
+        try:
+            pygame.mixer.music.play( loops=0, start=0.0 )
+        except:
+            import traceback
+
+            traceback.print_exc()
 
 
 

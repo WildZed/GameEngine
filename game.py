@@ -4,6 +4,7 @@
 import random, sys, time, math, pygame, copy
 from geometry import *
 from pygame.locals import *
+from game_utils import fontCache
 
 
 # Constants.
@@ -57,7 +58,7 @@ class Game:
 
 
     def addDebugText( self, text, pos, colour ):
-        self.gameMap.addObject( DebugText( self.viewPort.basicFont, text, pos, colour ) )
+        self.gameMap.addObject( DebugText( fontCache['basic'], text, pos, colour ) )
         # DebugText( '%s' % (pos), ( pos.x + 80, pos.y + 40 ), RED )
         # DebugText( '%s' % (rect), ( pos.x + 120, pos.y + 80 ), RED )
 
@@ -109,7 +110,6 @@ class Game:
     def update( self ):
         self.updateState()
         self.updateMap()
-        self.fpsClock.tick( DEFAULT_FPS )
 
 
     def draw( self ):
@@ -131,3 +131,4 @@ class Game:
             self.draw()
             self.processEvents()
             self.update()
+            self.fpsClock.tick( DEFAULT_FPS )

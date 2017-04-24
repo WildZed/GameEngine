@@ -73,7 +73,7 @@ class Point:
 
 
 
-class Rect:
+class Rectangle:
     def __init__( self, rectOrll = None, ur = None ):
         if rectOrll is None:
             self.ll = Point( 0, 0 )
@@ -113,6 +113,10 @@ class Rect:
             val = self.ll.x
         elif key == 'right':
             val = self.ur.x
+        elif key == 'ul':
+            val = Point( self.ll.x, self.ur.y )
+        elif key == 'lr':
+            val = Point( self.ur.x, self.ll.y )
         else:
             raise AttributeError( "Rect attribute '%s' not recognised." % key )
 
@@ -136,6 +140,10 @@ class Rect:
 
     def __repr__( self ):
         return 'll %s ur %s' % (self.ll, self.ur)
+
+
+    def asTupleTuple( self ):
+        return ( self.ul.asTuple(), self.ur.asTuple(), self.lr.asTuple(), self.ll.asTuple() )
 
 
 

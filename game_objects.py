@@ -4,6 +4,7 @@
 import random, sys, time, math, pygame, copy
 from geometry import *
 from pygame.locals import *
+from game_utils import fontCache
 
 
 # Constants.
@@ -86,9 +87,13 @@ class Object:
     def attachObject( self, obj ):
         self.attachedObjects.append( obj )
 
+        return obj
 
-    def dettachObject( self, obj ):
+
+    def detachObject( self, obj ):
         self.attachedObjects.remove( obj )
+
+        return obj
 
 
     def updateCollisionRect( self ):
@@ -123,6 +128,8 @@ class Object:
         offSetPos = self.getOffSetPos( -viewPort.camera + offset )
         footViewPortPos = offSetPos + Point( xoff, self.height )
 
+        self.drawPos( viewPort.displaySurface, footViewPortPos )
+
         # print( "footViewPortPos %s" % footViewPortPos )
 
         return viewPort.collisionAtPoint( footViewPortPos )
@@ -143,8 +150,8 @@ class Object:
         return collides
 
 
-    def asRect( self ):
-        return Rect( Point( self.pos.x, self.pos.y ), Point( self.pos.x + self.width, self.pos.y + self.height ) )
+    def asRectangle( self ):
+        return Rectange( Point( self.pos.x, self.pos.y ), Point( self.pos.x + self.width, self.pos.y + self.height ) )
 
 
     def swapImage( self, image ):
@@ -159,9 +166,22 @@ class Object:
 
 
     def updateAttachedObjects( self, camera = ORIGIN, offset = ORIGIN ):
+        # Calculate attached objects' positions relative to this object.
+        offset = offset + self.pos
+
         for attachedObject in self.attachedObjects:
-            offset = offset + attachedObject.pos
-            attachedObject.update( camera, offset )
+            attachedObjectOffset = offset # + attachedObject.pos
+            attachedObject.update( camera, attachedObjectOffset )
+
+
+    def drawBox( self, surface, rect ):
+        pygame.draw.lines( surface, RED, True, ( rect.topleft, rect.topright, rect.bottomright, rect.bottomleft ) )
+
+
+    def drawPos( self, surface, pos ):
+        rect = Rectangle( pos - 2, pos + 2 )
+        print rect.asTupleTuple()
+        pygame.draw.lines( surface, RED, True, rect.asTupleTuple() )
 
 
     def draw( self, surface, debugDraw = False ):
@@ -169,11 +189,13 @@ class Object:
             surface.blit( self.surface, self.rect )
 
             if debugDraw:
-                pygame.draw.rect( surface, RED, self.rect, 0 )
-                pygame.draw.rect( surface, RED, self.colRect, 0 )
+                self.drawBox( surface, self.rect )
+                self.drawBox( surface, self.colRect )
+
+            self.drawAttachedObjects( surface, debugDraw=debugDraw )
 
 
-    def drawAttachedObjects( self ):
+    def drawAttachedObjects( self, surface, debugDraw = False ):
         for attachedObject in self.attachedObjects:
             attachedObject.draw( surface, debugDraw=debugDraw )
 
@@ -204,6 +226,10 @@ class Object:
             self.__dict__['pos'].y = val
         else:
             self.__dict__[key] = val
+
+
+    def __nonzero__( self ):
+        return True
 
 
 
@@ -257,11 +283,6 @@ class Text( Object ):
         self.surface = self.font.render( self.text, True, self.colour )
 
 
-    def updateRect( self, camera = ORIGIN, jitter = ORIGIN ):
-        self.rect = rect = self.surface.get_rect()
-        self.rect = rect.move( -camera.x + jitter.x, -camera.y + jitter.y )
-
-
 
 
 # Creates static text in viewport coordinates.
@@ -270,7 +291,7 @@ class StaticText( Text ):
         Text.__init__( self, font, text, pos, colour )
 
 
-    def update( self, camera = ORIGIN, jitter = ORIGIN ):
+    def update( self, camera = ORIGIN, offset = ORIGIN ):
         # Call the base class, but don't use the offset.
         Text.update( self )
 
@@ -304,6 +325,7 @@ class Player( Object ):
         self.left = True
         self.steps = 0
         self.movementStyle = movementStyle
+        self.attachedText = None
         movementStyle.setMoveObject( self )
 
         Object.__init__( self, imageL, size, pos )
@@ -315,6 +337,7 @@ class Player( Object ):
         self.colRect = colRect = self.rect.copy()
         # Collision rect from feet to a quarter height.
         colRect.top = colRect.top + ( ( colRect.height * 3 ) / 4 )
+        colRect.height = colRect.height / 4
         # Collision rect thinner than the image width by a quarter on each side.
         colRect.left = colRect.left + ( colRect.width / 4 )
         colRect.width = colRect.width / 2
@@ -332,14 +355,16 @@ class Player( Object ):
         return int( math.sin( ( math.pi / float( bounceRate ) ) * movementStyle.bounce ) * bounceHeight )
 
 
-    def setMovement( self, key ):
-        movementStyle = self.movementStyle
-        movementStyle.setMovement( key )
-
+    def checkUpdatePlayerDirection( self ):
         # Flip the player image if changed direction.
-        horizontalMovement = movementStyle.moving( 'horizontal' )
+        horizontalMovement = self.movementStyle.moving( 'horizontal' )
 
         if horizontalMovement:
+            if self.attachedText:
+                self.detachObject( self.attachedText )
+
+            self.attachedText = self.attachObject( Text( fontCache['small'], horizontalMovement, Point( 20, 20 ), GREEN ) )
+
             if 'left' == horizontalMovement and self.image is not self.imageL:
                 self.left = True
                 self.swapImage( self.imageL )
@@ -349,8 +374,14 @@ class Player( Object ):
                 self.swapImage( self.imageR )
 
 
+    def setMovement( self, key ):
+        self.movementStyle.setMovement( key )
+        self.checkUpdatePlayerDirection()
+
+
     def stopMovement( self, key ):
         self.movementStyle.stopMovement( key )
+        self.checkUpdatePlayerDirection()
 
 
     def move( self ):

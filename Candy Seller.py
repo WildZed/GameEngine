@@ -6,7 +6,7 @@
 
 import random, sys, time, math, pygame
 from pygame.locals import *
-from geometry import Point
+from geometry import *
 import viewport, game, game_map, game_dynamics, geometry
 from game_objects import *
 
@@ -46,7 +46,7 @@ class CandySeller( game.Game ):
         self.setDrawOrder( 'Shop', 'Arrow', 'Bush', 'Coin', 'Player', 'Score', 'Monster' )
         self.setCameraUpdates( 'Shop', 'Arrow', 'Bush', 'Coin' )
         self.setCursor()
-        viewPort.loadMusic( 'Money Ping.mp3' )
+        viewPort.loadMusic( 'Money Ping.ogg' )
 
 
     # Per game initialisation.
@@ -106,7 +106,7 @@ class CandySeller( game.Game ):
 
         gameMap.changeScene( 'shops' )
 
-        gameMap.addOverlay( Score( viewPort.basicFont, Point( viewPort.width - 100, 40 ), self.moneyScore ) )
+        gameMap.addOverlay( Score( fontCache['basic'], Point( viewPort.width - 180, 20 ), self.moneyScore ) )
         gameMap.addPlayer( self.createPlayer() )
 
         return gameMap
@@ -120,9 +120,9 @@ class CandySeller( game.Game ):
         playerStartPos = Point( viewPort.halfWidth, viewPort.halfHeight )
 
         # Sets up the movement style of the player.
-        playerBounds = geometry.Rect( Point( 0, 300 ), Point( 900, 440 ) )
-        moveStyle = game_dynamics.BoundedKeyMovementStyle( playerBounds )
-        # moveStyle = game_dynamics.CollisionKeyMovementStyle( viewPort )
+        playerBounds = Rectangle( Point( 0, 300 ), Point( 900, 440 ) )
+        # moveStyle = game_dynamics.BoundedKeyMovementStyle( playerBounds )
+        moveStyle = game_dynamics.CollisionKeyMovementStyle( viewPort )
         moveStyle.setMoveRate( MOVERATE )
         moveStyle.setBounceRates( BOUNCERATE, BOUNCEHEIGHT )
 
