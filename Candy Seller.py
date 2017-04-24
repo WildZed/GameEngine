@@ -15,22 +15,23 @@ from game_objects import *
 
 # Constants.
 
-WINWIDTH = 800 # width of the program's window, in pixels
-WINHEIGHT = 800 # height in pixels
+WINWIDTH = 800  # Width of the program's window, in pixels.
+WINHEIGHT = 800 # Height in pixels.
 
 BACKGROUND_COLOUR = (211, 211, 211)
 SHOP_FLOOR_COLOUR = (240, 180, 211)
 RED = (255, 0, 0)
 # PINK = (255, 105, 180)
 
-MOVERATE = 17        # how fast the player moves
-BOUNCERATE = 6       # how fast the player bounces (large is slower)
-BOUNCEHEIGHT = 10    # how high the player bounces
-SHOPSIZE = 400       # how big the shops are
-MONEYSIZE = 80       # how big the money is
-ARROWSIZE = 250      # how big the arrows are
-BUSHSIZE = 150       # how big the bushes are
-MONSTERSIZE = 800    # how big the jumpscare monster is
+MOVERATE = 17        # How fast the player moves.
+BOUNCERATE = 6       # How fast the player bounces (large is slower).
+BOUNCEHEIGHT = 10    # How high the player bounces.
+MANSIZE = 30         # How big the man is.
+SHOPSIZE = 240       # How big the shops are.
+MONEYSIZE = 20       # How big the money is.
+ARROWSIZE = 160      # How big the arrows are.
+BUSHSIZE = 200       # How big the bushes are.
+MONSTERSIZE = 800    # How big the jumpscare monster is.
 
 
 
@@ -91,8 +92,8 @@ class CandySeller( game.Game ):
         self.createShops( gameMap )
 
         # Start off with some bushes on the screen.
-        gameMap.addObject( Bush( images.bush, BUSHSIZE, Point( -100, 400 ) ) )
-        gameMap.addObject( Bush( images.bush, BUSHSIZE, Point( 1000, 400 ) ) )
+        gameMap.addObject( Bush( images.bush, Point( -200, 400 ), BUSHSIZE ) )
+        gameMap.addObject( Bush( images.bush, Point( 928, 400 ), BUSHSIZE ) )
 
         # Start off with some arrows on the screen.
         self.createArrows( gameMap )
@@ -116,33 +117,37 @@ class CandySeller( game.Game ):
         viewPort = self.viewPort
         images = self.images
         # How big the player starts off.
-        manSize = 150
         playerStartPos = Point( viewPort.halfWidth, viewPort.halfHeight )
 
         # Sets up the movement style of the player.
-        playerBounds = Rectangle( Point( 0, 300 ), Point( 900, 440 ) )
+        playerBounds = Rectangle( Point( 0, 220 ), Point( 900, 550 ) )
         # moveStyle = game_dynamics.BoundedKeyMovementStyle( playerBounds )
         moveStyle = game_dynamics.CollisionKeyMovementStyle( viewPort )
         moveStyle.setMoveRate( MOVERATE )
         moveStyle.setBounceRates( BOUNCERATE, BOUNCEHEIGHT )
 
-        return Player( images.manL, images.manR, manSize, playerStartPos, moveStyle )
+        return Player( images.manL, images.manR, playerStartPos, MANSIZE, moveStyle )
 
 
     def createShops( self, gameMap ):
         for shopNum in range( 1, 4 ):
-            gameMap.addObject( Shop( self.images.shops[shopNum], SHOPSIZE, Point( ( shopNum - 1 ) * 320, 0 ) ) )
+            shopPos = Point( ( shopNum - 1 ) * 320, 80 )
+            shop = Shop( self.images.shops[shopNum], shopPos, SHOPSIZE )
+            gameMap.addObject( shop )
 
 
     def createArrows( self, gameMap ):
         for arrowNum in range( 1, 4 ):
-            gameMap.addObject( Arrow( self.images.arrows[arrowNum], ARROWSIZE, Point( ( arrowNum - 1 ) * 320 + 80, 550 ) ) )
+            arrowPos = Point( ( arrowNum - 1 ) * 320 + 30, 640 )
+            arrow = Arrow( self.images.arrows[arrowNum], arrowPos, ARROWSIZE )
+            gameMap.addObject( arrow )
 
 
     def createCoins( self, gameMap, num ):
         for ii in range( num ):
             pos = Point( random.randint( 0, WINWIDTH ), random.randint( 400, 500 ) )
-            gameMap.addObject( Coin( self.images.money, pos, MONEYSIZE ) )
+            coin = Coin( self.images.money, pos, MONEYSIZE )
+            gameMap.addObject( coin )
 
 
     # Could move cursor description into a file and read from there.
@@ -193,7 +198,8 @@ class CandySeller( game.Game ):
             elif event.key is K_q:
                 # Releases the jumpscare if you press 'q'.
                 viewPort.playSound( "Jumpscare V2" )
-                gameMap.addSprite( Monster( gameMap.images.jumpscare_monster, MONSTERSIZE, Point( 0, 0 ) ) )
+                monster = Monster( gameMap.images.jumpscare_monster, Point( 0, 0 ), MONSTERSIZE, 1.4 )
+                gameMap.addSprite( monster )
         elif event.type == KEYUP:
             # Check if the key stops the player in a given direction.
             player.stopMovement( event.key )

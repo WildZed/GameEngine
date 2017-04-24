@@ -45,14 +45,30 @@ class Data:
 
 # A generic game object.
 class Object:
-    def __init__( self, image, size, pos ):
+    def __init__( self, image, pos, size, ratio = None, positionStyle = '' ):
         # generalSize = random.randint( 5, 25 )
         # multiplier = random.randint( 1, 3 )
         # self.width  = ( generalSize + random.randint( 0, 10 ) ) * multiplier
         # self.height = ( generalSize + random.randint( 0, 10 ) ) * multiplier
+        self.name = None
+        self.parent = None
         self.visible = True
         self.image = image
         self.size = size
+        # Default position style of 'top_left' in world coordinates is the same as ''.
+        # Styles: 'top_left', 'centred', 'relative_top_left', 'relative_centred',
+        #         'viewport_top_left', 'viewport_centred'
+        self.positionStyle = positionStyle
+
+        if image:
+            # The ratio of height to width.
+            self.ratio = float( image.get_height() ) / float( image.get_width() )
+        else:
+            self.ratio = 1.0
+
+        if ratio is not None:
+            self.ratio *= ratio
+
         self.pos = pos
         # The position rectangle.
         self.rect = None
@@ -64,18 +80,44 @@ class Object:
         self.attachedObjects = []
 
 
+    def setName( self, name ):
+        self.name = name
+
+
+    def setParent( self, parent ):
+        self.parent = parent
+
+
+    def setPositionStyle( self, positionStyle = '' ):
+        self.positionStyle = positionStyle
+
+
     def updateSurface( self ):
-        self.surface = pygame.transform.scale( self.image, ( self.size, self.size ) )
+        width = self.size
+        height = int( ( float( width ) * self.ratio ) + 0.5 )
+        image = self.image
+
+        if image:
+            self.surface = pygame.transform.scale( image, ( width, height ) )
+        else:
+            self.surface = pygame.Surface( ( width, height ) )
 
 
     def updateRect( self, camera = ORIGIN, offset = ORIGIN ):
-        offset = offset - camera
+        if self.positionStyle[:8] != 'viewport':
+            offset = offset - camera
+
         # self.rect = self.surface.get_rect()
         self.rect = self.getOffSetRect( offset )
 
 
     def getOffSetPos( self, offset = ORIGIN ):
-        return Point( self.pos.x + offset.x, self.pos.y + offset.y )
+        offset = offset + self.pos
+
+        if self.positionStyle[-7:] == 'centred':
+            offset -= Point( self.width / 2, self.height / 2 )
+
+        return offset
 
 
     def getOffSetRect( self, offset = ORIGIN ):
@@ -86,14 +128,40 @@ class Object:
 
     def attachObject( self, obj ):
         self.attachedObjects.append( obj )
+        obj.setParent( self )
+
+        if obj.positionStyle == '':
+            obj.positionStyle = 'relative_top_left'
 
         return obj
 
 
     def detachObject( self, obj ):
-        self.attachedObjects.remove( obj )
+        try:
+            obj.setParent( None )
+            self.attachedObjects.remove( obj )
+        except ValueError:
+            obj = None
 
         return obj
+
+
+    def detachNamedObject( self, name ):
+        for attachedObject in self.attachedObjects:
+            if attachedObject.name == name:
+                self.detachObject( attachedObject )
+                break
+
+
+    def detachAllObjects( self ):
+        attachedObjectList = self.attachedObjects
+
+        for attachedObject in attachedObjectList:
+            attachedObject.setParent( None )
+
+        self.attachedObjects = []
+
+        return attachedObjectList
 
 
     def updateCollisionRect( self ):
@@ -122,13 +190,13 @@ class Object:
     def collidesWithColour( self, viewPort, offset = ORIGIN ):
         xoff = 0
 
-        if self.left:
+        if not self.left:
             xoff = self.width
 
-        offSetPos = self.getOffSetPos( -viewPort.camera + offset )
+        offSetPos = self.getOffSetPos( offset - viewPort.camera )
         footViewPortPos = offSetPos + Point( xoff, self.height )
 
-        self.drawPos( viewPort.displaySurface, footViewPortPos )
+        # self.debugPos( 'footViewPortPos', footViewPortPos, positionStyle='viewport_centred' )
 
         # print( "footViewPortPos %s" % footViewPortPos )
 
@@ -166,11 +234,13 @@ class Object:
 
 
     def updateAttachedObjects( self, camera = ORIGIN, offset = ORIGIN ):
-        # Calculate attached objects' positions relative to this object.
-        offset = offset + self.pos
-
         for attachedObject in self.attachedObjects:
-            attachedObjectOffset = offset # + attachedObject.pos
+            attachedObjectOffset = copy.copy( offset )
+
+            # Calculate attached objects' positions relative to this object.
+            if attachedObject.positionStyle[:8] == 'relative':
+                attachedObjectOffset += self.pos
+
             attachedObject.update( camera, attachedObjectOffset )
 
 
@@ -179,9 +249,17 @@ class Object:
 
 
     def drawPos( self, surface, pos ):
-        rect = Rectangle( pos - 2, pos + 2 )
-        print rect.asTupleTuple()
-        pygame.draw.lines( surface, RED, True, rect.asTupleTuple() )
+        rect = Rectangle( pos - 20, pos + 20 )
+        points = rect.asTupleTuple()
+        # print points
+        pygame.draw.lines( surface, RED, True, points )
+
+
+    def debugPos( self, name, pos, size = 4, positionStyle = '' ):
+        self.detachNamedObject( name )
+        posBox = Box( pos, size, positionStyle=positionStyle )
+        posBox.setName( name )
+        self.attachObject( posBox )
 
 
     def draw( self, surface, debugDraw = False ):
@@ -232,39 +310,50 @@ class Object:
         return True
 
 
+    def __eq__( self, obj ):
+        return self is obj
+
+
+
+
+class Box( Object ):
+    def __init__( self, pos, size, positionStyle = '' ):
+        Object.__init__( self, None, pos, size, positionStyle=positionStyle )
+
+
 
 
 class Shop( Object ):
-    def __init__( self, image, size, pos ):
-        Object.__init__( self, image, size, pos )
+    def __init__( self, image, pos, size ):
+        Object.__init__( self, image, pos, size )
 
 
 
 
 class Bush( Object ):
-    def __init__( self, image, size, pos ):
-        Object.__init__( self, image, size, pos )
+    def __init__( self, image, pos, size ):
+        Object.__init__( self, image, pos, size )
 
 
 
 
 class Arrow( Object ):
-    def __init__( self, image, size, pos ):
-        Object.__init__( self, image, size, pos )
+    def __init__( self, image, pos, size ):
+        Object.__init__( self, image, pos, size )
 
 
 
 
 class Monster( Object ):
-    def __init__( self, image, size, pos ):
-        Object.__init__( self, image, size, pos )
+    def __init__( self, image, pos, size, ratio = None ):
+        Object.__init__( self, image, pos, size, ratio )
 
 
 
 
 class Coin( Object ):
     def __init__( self, image, pos, size ):
-        Object.__init__( self, image, size, pos )
+        Object.__init__( self, image, pos, size )
 
 
 
@@ -276,7 +365,7 @@ class Text( Object ):
         self.text = text
         self.colour = colour
 
-        Object.__init__( self, None, 0, pos )
+        Object.__init__( self, None, pos, 0 )
 
 
     def updateSurface( self ):
@@ -319,7 +408,7 @@ class Score( StaticText ):
 
 
 class Player( Object ):
-    def __init__( self, imageL, imageR, size, pos, movementStyle ):
+    def __init__( self, imageL, imageR, pos, size, movementStyle ):
         self.imageL = imageL
         self.imageR = imageR
         self.left = True
@@ -328,7 +417,7 @@ class Player( Object ):
         self.attachedText = None
         movementStyle.setMoveObject( self )
 
-        Object.__init__( self, imageL, size, pos )
+        Object.__init__( self, imageL, pos, size )
 
 
     # Override updateCollisionRect() from Object.
@@ -339,8 +428,8 @@ class Player( Object ):
         colRect.top = colRect.top + ( ( colRect.height * 3 ) / 4 )
         colRect.height = colRect.height / 4
         # Collision rect thinner than the image width by a quarter on each side.
-        colRect.left = colRect.left + ( colRect.width / 4 )
-        colRect.width = colRect.width / 2
+        # colRect.left = colRect.left + ( colRect.width / 4 )
+        # colRect.width = colRect.width / 2
 
 
     def getBounceAmount( self ):
@@ -363,7 +452,8 @@ class Player( Object ):
             if self.attachedText:
                 self.detachObject( self.attachedText )
 
-            self.attachedText = self.attachObject( Text( fontCache['small'], horizontalMovement, Point( 20, 20 ), GREEN ) )
+            self.attachedText = Text( fontCache['small'], horizontalMovement, Point( -20, -20 ), GREEN )
+            self.attachObject( self.attachedText )
 
             if 'left' == horizontalMovement and self.image is not self.imageL:
                 self.left = True
@@ -386,6 +476,7 @@ class Player( Object ):
 
     def move( self ):
         newPos = self.movementStyle.move( self.pos )
+        # print( newPos )
 
         if newPos != self.pos:
             self.pos = newPos

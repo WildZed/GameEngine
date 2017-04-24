@@ -24,26 +24,14 @@ class Point:
 
     def __add__( self, pointOrNum ):
         point = Point( self )
-
-        if isinstance( pointOrNum, Point ):
-            point.x += pointOrNum.x
-            point.y += pointOrNum.y
-        else:
-            point.x += pointOrNum
-            point.y += pointOrNum
+        point += pointOrNum
 
         return point
 
 
     def __sub__( self, pointOrNum ):
         point = Point( self )
-
-        if isinstance( pointOrNum, Point ):
-            point.x -= pointOrNum.x
-            point.y -= pointOrNum.y
-        else:
-            point.x -= pointOrNum
-            point.y -= pointOrNum
+        point -= pointOrNum
 
         return point
 
@@ -61,6 +49,25 @@ class Point:
             self.y += pointOrNum
 
         return self
+
+
+    def __isub__( self, pointOrNum ):
+        if isinstance( pointOrNum, Point ):
+            self.x -= pointOrNum.x
+            self.y -= pointOrNum.y
+        else:
+            self.x -= pointOrNum
+            self.y -= pointOrNum
+
+        return self
+
+
+    def __eq__( self, point ):
+        return self.x == point.x and self.y == point.y
+
+
+    def __ne__( self, point ):
+        return not self.__eq__( point )
 
 
     def __repr__( self ):

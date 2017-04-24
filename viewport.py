@@ -112,6 +112,8 @@ class ViewPort:
         if collides:
             # Find the colour on the display at the given position.
             colour = pygame.display.get_surface().get_at( pos.asTuple() )
+            # Drop the mask from the return colour tuple.
+            colour = colour[:3]
             collides = ( colour != self.backGroundColour )
 
             # print "collisionAtPoint %s col %s bgcol %s" % ( collides, colour, self.backGroundColour )
@@ -119,7 +121,7 @@ class ViewPort:
         return collides
 
 
-    def draw( self ):
+    def update( self ):
         pygame.display.update()
 
 

@@ -77,6 +77,8 @@ class Game:
         elif KEYUP == event.type:
             if K_ESCAPE == event.key:
                 self.terminate()
+            elif K_F5 == event.key:
+                self.running = False
             elif K_p == event.key:
                 self.debugDraw = not self.debugDraw
         elif MOUSEBUTTONDOWN == event.type:
@@ -122,7 +124,7 @@ class Game:
         # Draw all the map objects.
         gameMap.draw( viewPort, self.drawOrder, debugDraw=self.debugDraw )
 
-        viewPort.draw()
+        viewPort.update()
 
 
     def run( self ):

@@ -1,6 +1,7 @@
 # Monkey-Rabbit Games
 # Game Dynamics
 
+import copy
 from pygame.locals import *
 from geometry import *
 
@@ -68,6 +69,7 @@ class Directions:
                 for direction in Directions.AXES[axis]:
                     if self.__dict__.has_key( direction ) and self.__dict__[direction]:
                         axisValue = direction
+                        break
 
             self.__dict__[axis] = axisValue
         else:
@@ -114,6 +116,7 @@ class KeyMovementStyle( MovementStyle ):
         self.directions = Directions()
         self.bounce = 0
         self.dirToKeysMap = DEFAULT_KEYSMAP
+        self.allDirsToKeysMap = copy.copy( DEFAULT_KEYSMAP )
         self.createKeyToDirMap()
 
 
@@ -121,15 +124,16 @@ class KeyMovementStyle( MovementStyle ):
         dirToKeysMap = self.dirToKeysMap
         self.keyToDirMap = keyToDirMap = {}
 
-        for direction in self.dirToKeysMap.keys():
+        for direction in dirToKeysMap.keys():
             keys = dirToKeysMap[direction]
 
             for key in keys:
                 keyToDirMap[key] = direction
 
-        dirToKeysMap['horizontal'] = dirToKeysMap['left'] + dirToKeysMap['right']
-        dirToKeysMap['vertical'] = dirToKeysMap['up'] + dirToKeysMap['down']
-        dirToKeysMap['all'] = dirToKeysMap['horizontal'] + dirToKeysMap['vertical']
+        allDirsToKeysMap = self.allDirsToKeysMap
+        allDirsToKeysMap['horizontal'] = dirToKeysMap['left'] + dirToKeysMap['right']
+        allDirsToKeysMap['vertical'] = dirToKeysMap['up'] + dirToKeysMap['down']
+        allDirsToKeysMap['all'] = allDirsToKeysMap['horizontal'] + allDirsToKeysMap['vertical']
 
 
     def setMoveRate( self, moveRate ):
@@ -142,7 +146,7 @@ class KeyMovementStyle( MovementStyle ):
 
 
     def setMovement( self, key ):
-        if key in self.dirToKeysMap['all']:
+        if key in self.allDirsToKeysMap['all']:
             direction = self.keyToDirMap[key]
             self.directions[direction] = True
 
@@ -150,7 +154,7 @@ class KeyMovementStyle( MovementStyle ):
     def stopMovement( self, key = None ):
         if not key:
             self.directions = {}
-        elif key in self.dirToKeysMap['all']:
+        elif key in self.allDirsToKeysMap['all']:
             direction = self.keyToDirMap[key]
             self.directions[direction] = False
 
@@ -234,8 +238,8 @@ class CollisionKeyMovementStyle( KeyMovementStyle ):
         moveObject = self.moveObject
         offset = newPos - pos
 
-        if not moveObject.collidesWithColour( self.viewPort, offset ) \
-           or moveObject.collidesWithColour( self.viewPort ):
+        if moveObject.collidesWithColour( self.viewPort, offset ) \
+           and not moveObject.collidesWithColour( self.viewPort ):
             newPos = pos
 
         return newPos
