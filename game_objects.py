@@ -452,8 +452,8 @@ class Player( Object ):
             if self.attachedText:
                 self.detachObject( self.attachedText )
 
-            self.attachedText = Text( fontCache['small'], horizontalMovement, Point( -20, -20 ), GREEN )
-            self.attachObject( self.attachedText )
+            # self.attachedText = Text( fontCache['small'], horizontalMovement, Point( -20, -20 ), GREEN )
+            # self.attachObject( self.attachedText )
 
             if 'left' == horizontalMovement and self.image is not self.imageL:
                 self.left = True
