@@ -408,7 +408,7 @@ class Score( StaticText ):
 
 
 class Player( Object ):
-    def __init__( self, imageL, imageR, pos, size, movementStyle ):
+    def __init__( self, imageL, imageR, pos, size, movementStyle, ratio = 1.0 ):
         self.imageL = imageL
         self.imageR = imageR
         self.left = True
@@ -417,7 +417,7 @@ class Player( Object ):
         self.attachedText = None
         movementStyle.setMoveObject( self )
 
-        Object.__init__( self, imageL, pos, size )
+        Object.__init__( self, imageL, pos, size, ratio=ratio )
 
 
     # Override updateCollisionRect() from Object.

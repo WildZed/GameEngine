@@ -126,7 +126,7 @@ class CandySeller( game.Game ):
         moveStyle.setMoveRate( MOVERATE )
         moveStyle.setBounceRates( BOUNCERATE, BOUNCEHEIGHT )
 
-        return Player( images.manL, images.manR, playerStartPos, MANSIZE, moveStyle )
+        return Player( images.manL, images.manR, playerStartPos, MANSIZE, moveStyle, ratio=1.4 )
 
 
     def createShops( self, gameMap ):
