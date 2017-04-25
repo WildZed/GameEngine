@@ -1,15 +1,16 @@
 # Monkey-Rabbit Games
 # ViewPort
 
-import random, sys, time, math, pygame, copy
-from geometry import *
+import random, pygame, copy
 from pygame.locals import *
+from geometry import *
 from game_utils import fontCache
+from game_constants import *
 
 
 # Constants:
 
-DEFAULT_BACKGROUND_COLOUR = ( 255, 255, 255 )
+DEFAULT_BACKGROUND_COLOUR = WHITE
 # How far from the center the player moves before moving the camera.
 CAMERASLACK = 90
 
@@ -17,6 +18,37 @@ CAMERASLACK = 90
 
 
 class ViewPort:
+    # Class variables.
+    debugDraw = False
+
+
+    @staticmethod
+    def setDebugDraw( on ):
+        ViewPort.debugDraw = on
+
+
+    @staticmethod
+    def toggleDebugDraw():
+        ViewPort.debugDraw = not ViewPort.debugDraw
+
+
+    @staticmethod
+    def sdrawRect( surface, rect, colour = BLACK ):
+        pygame.draw.rect( surface, colour, rect )
+
+
+    @staticmethod
+    def sdrawBox( surface, rect, colour = BLACK ):
+        pygame.draw.lines( surface, colour, True, ( rect.topleft, rect.topright, rect.bottomright, rect.bottomleft ) )
+
+
+    @staticmethod
+    def sdrawPos( surface, pos, colour = BLACK ):
+        rect = Rectangle( pos - 20, pos + 20 )
+        points = rect.asTupleTuple()
+        pygame.draw.lines( surface, self.colour, True, points )
+
+
     def __init__( self, width, height ):
         self.width = width
         self.height = height
@@ -36,14 +68,14 @@ class ViewPort:
     def adjustCamera( self, pos ):
         camera = self.camera
 
-        if ( camera.x + self.halfWidth ) - pos.x > CAMERASLACK:
+        if ( ( camera.x + self.halfWidth ) - pos.x ) > CAMERASLACK:
             camera.x = pos.x + CAMERASLACK - self.halfWidth
-        elif pos.x - ( camera.x + self.halfWidth ) > CAMERASLACK:
+        elif ( pos.x - ( camera.x + self.halfWidth ) ) > CAMERASLACK:
             camera.x = pos.x - CAMERASLACK - self.halfWidth
 
-        if ( camera.y + self.halfHeight ) - pos.y > CAMERASLACK:
+        if ( ( camera.y + self.halfHeight ) - pos.y ) > CAMERASLACK:
             camera.y = pos.y + CAMERASLACK - self.halfHeight
-        elif pos.y - ( camera.y + self.halfHeight ) > CAMERASLACK:
+        elif ( pos.y - ( camera.y + self.halfHeight ) ) > CAMERASLACK:
             camera.y = pos.y - CAMERASLACK - self.halfHeight
 
 
@@ -99,11 +131,20 @@ class ViewPort:
         self.displaySurface.fill( colour )
 
 
-    def drawRect( self, rect, colour ):
-        pygame.draw.rect( self.displaySurface, colour, rect )
+    def drawRect( self, rect, **kwArgs ):
+        ViewPort.drawBox( self.displaySurface, rect, **kwArgs )
 
 
-    def collisionAtPoint( self, pos, obj = None ):
+    def drawBox( self, rect, **kwArgs ):
+        ViewPort.drawBox( self.displaySurface, rect, **kwArgs )
+
+
+    def drawPos( self, pos, **kwArgs ):
+        ViewPort.drawPos( self.displaySurface, pos, **kwArgs )
+
+
+    # Does the point collide with a colour other than the background colour.
+    def collisionOfPoint( self, pos, obj = None ):
         # Use the object's bounding rectangle to filter the position, if provided.
         collides = ( obj is None or obj.collidesWithPoint( pos, True ) )
 

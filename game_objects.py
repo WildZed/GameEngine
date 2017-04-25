@@ -1,18 +1,15 @@
 # Monkey-Rabbit Games
 # Game Objects
 
-import random, sys, time, math, pygame, copy
-from geometry import *
+import random, time, math, pygame, copy
+import viewport
 from pygame.locals import *
+from geometry import *
 from game_utils import fontCache
+from game_constants import *
 
 
 # Constants.
-
-WHITE = ( 255, 255, 255 )
-RED = ( 255, 0, 0 )
-GREEN = ( 0, 255, 0 )
-BLUE = ( 0, 0, 255 )
 
 
 
@@ -45,39 +42,41 @@ class Data:
 
 # A generic game object.
 class Object:
-    def __init__( self, image, pos, size, ratio = None, positionStyle = '' ):
+    # Constants.
+    DEFAULT_OBJECT_SIZE = 20
+
+
+    # Constructor.
+    def __init__( self, pos, **kwArgs ):
         # generalSize = random.randint( 5, 25 )
         # multiplier = random.randint( 1, 3 )
         # self.width  = ( generalSize + random.randint( 0, 10 ) ) * multiplier
         # self.height = ( generalSize + random.randint( 0, 10 ) ) * multiplier
-        self.name = None
         self.parent = None
-        self.visible = True
-        self.image = image
-        self.size = size
-        # Default position style of 'top_left' in world coordinates is the same as ''.
-        # Styles: 'top_left', 'centred', 'relative_top_left', 'relative_centred',
-        #         'viewport_top_left', 'viewport_centred'
-        self.positionStyle = positionStyle
-
-        if image:
-            # The ratio of height to width.
-            self.ratio = float( image.get_height() ) / float( image.get_width() )
-        else:
-            self.ratio = 1.0
-
-        if ratio is not None:
-            self.ratio *= ratio
-
+        self.name = kwArgs.get( 'name', None )
+        self.visible = kwArgs.get( 'visible', True )
         self.pos = pos
+        self.size = kwArgs.get( 'size', Object.DEFAULT_OBJECT_SIZE )
+        self.ratio = kwArgs.get( 'ratio', 1.0 )
+        # Default position style of 'top_left' in world coordinates is the same as '',
+        # but '' indicates that no override position style has been passed in.
+        # Styles: 'top_left', 'centre', 'relative_top_left', 'relative_centre',
+        #         'viewport_top_left', 'viewport_centre'
+        self.positionStyle = kwArgs.get( 'positionStyle', '' )
+        self.colour = kwArgs.get( 'colour', BLACK )
+        self.mirrorV = kwArgs.get( 'mirrorV', False )
+        self.mirrorH = kwArgs.get( 'mirrorH', False )
+        self.updateCallback = kwArgs.get( 'updateCallback', None )
+
         # The position rectangle.
         self.rect = None
         self.colRect = None
         self.surface = None
+        self.attachedObjects = []
+
         self.updateSurface()
         self.updateRect()
         self.updateCollisionRect()
-        self.attachedObjects = []
 
 
     def setName( self, name ):
@@ -92,15 +91,23 @@ class Object:
         self.positionStyle = positionStyle
 
 
+    def setMirrorV( self, on ):
+        self.mirrorV = on
+
+
+    def setMirrorH( self, on ):
+        self.mirrorH = on
+
+
+    def setUpdateCallback( self, updateCallback = None ):
+        self.updateCallback = updateCallback
+
+
     def updateSurface( self ):
         width = self.size
         height = int( ( float( width ) * self.ratio ) + 0.5 )
-        image = self.image
-
-        if image:
-            self.surface = pygame.transform.scale( image, ( width, height ) )
-        else:
-            self.surface = pygame.Surface( ( width, height ) )
+        self.surface = pygame.Surface( ( width, height ) )
+        self.surface.fill( self.colour )
 
 
     def updateRect( self, camera = ORIGIN, offset = ORIGIN ):
@@ -111,10 +118,15 @@ class Object:
         self.rect = self.getOffSetRect( offset )
 
 
+    # Get the object's surface top left position given an offset
+    # from the object's world coordinate position.
+    # This is usually used to find where to draw the surface,
+    # which is from top left.
+    # OR in other words, get a position offset from the top left position.
     def getOffSetPos( self, offset = ORIGIN ):
-        offset = offset + self.pos
+        offset = self.pos + offset
 
-        if self.positionStyle[-7:] == 'centred':
+        if self.positionStyle[-6:] == 'centre':
             offset -= Point( self.width / 2, self.height / 2 )
 
         return offset
@@ -136,6 +148,14 @@ class Object:
         return obj
 
 
+    def getNamedAttachedObject( self, name ):
+        for attachedObject in self.attachedObjects:
+            if attachedObject.name == name:
+                return attachedObject
+
+        return None
+
+
     def detachObject( self, obj ):
         try:
             obj.setParent( None )
@@ -147,10 +167,12 @@ class Object:
 
 
     def detachNamedObject( self, name ):
-        for attachedObject in self.attachedObjects:
-            if attachedObject.name == name:
-                self.detachObject( attachedObject )
-                break
+        attachedObject = getNamedAttachedObject( name )
+
+        if attachedObject:
+            self.detachObject( attachedObject )
+
+        return attachedObject
 
 
     def detachAllObjects( self ):
@@ -187,47 +209,30 @@ class Object:
         return collides
 
 
+    # Does the object's foot position
     def collidesWithColour( self, viewPort, offset = ORIGIN ):
-        xoff = 0
+        # Calculate the viewport coordinate for the object's top left position
+        # plus the supplied offset. The offset can be used to work out if
+        # a future position will collide.
+        collisionPos = self.getOffSetPos( offset - viewPort.camera )
 
-        if not self.left:
-            xoff = self.width
+        if viewport.ViewPort.debugDraw:
+            # print( "collisionPos %s" % collisionPos )
+            # print( "offset %s" ) % ( viewPort.camera + collisionPos - offset - self.pos )
+            # print( "camera %s" % viewPort.camera )
+            self.debugPos( 'collisionPos', collisionPos, positionStyle='viewport_centre', size=8 )
 
-        offSetPos = self.getOffSetPos( offset - viewPort.camera )
-        footViewPortPos = offSetPos + Point( xoff, self.height )
-
-        # self.debugPos( 'footViewPortPos', footViewPortPos, positionStyle='viewport_centred' )
-
-        # print( "footViewPortPos %s" % footViewPortPos )
-
-        return viewPort.collisionAtPoint( footViewPortPos )
-
-
-    def collidesAlt( camera, pos, rect ):
-        # Adjust rectangle for camera shift.
-        adjustedRect = Rect( rect )
-        adjustedRect += camera
-        # Is position inside the given rectangle adjusted for camera position.
-        collides = ( adjustedRect.left <= pos.x and pos.x <= adjustedRect.right ) and ( adjustedRect.bottom <= pos.y and pos.y <= adjustedRect.top )
-
-        if collides:
-            # Find the colour on the display at the given position.
-            colour = pygame.display.get_surface().get_at( pos.asTuple() )
-            collides = ( colour != BACKGROUND_COLOUR )
-
-        return collides
+        return viewPort.collisionOfPoint( collisionPos )
 
 
     def asRectangle( self ):
         return Rectange( Point( self.pos.x, self.pos.y ), Point( self.pos.x + self.width, self.pos.y + self.height ) )
 
 
-    def swapImage( self, image ):
-        self.image = image
-        self.updateSurface()
-
-
     def update( self, camera = ORIGIN, offset = ORIGIN ):
+        if self.updateCallback:
+            self.updateCallback( self, camera, offset )
+
         self.updateRect( camera, offset )
         self.updateCollisionRect()
         self.updateAttachedObjects( camera, offset )
@@ -244,38 +249,29 @@ class Object:
             attachedObject.update( camera, attachedObjectOffset )
 
 
-    def drawBox( self, surface, rect ):
-        pygame.draw.lines( surface, RED, True, ( rect.topleft, rect.topright, rect.bottomright, rect.bottomleft ) )
-
-
-    def drawPos( self, surface, pos ):
-        rect = Rectangle( pos - 20, pos + 20 )
-        points = rect.asTupleTuple()
-        # print points
-        pygame.draw.lines( surface, RED, True, points )
-
-
-    def debugPos( self, name, pos, size = 4, positionStyle = '' ):
+    def debugPos( self, name, pos, **kwArgs ):
         self.detachNamedObject( name )
-        posBox = Box( pos, size, positionStyle=positionStyle )
-        posBox.setName( name )
+        kwArgs['size'] = kwArgs.get( 'size', 4 )
+        kwArgs['name'] = name
+        posBox = Box( pos, **kwArgs )
         self.attachObject( posBox )
 
 
-    def draw( self, surface, debugDraw = False ):
+    def draw( self, surface ):
         if self.visible:
             surface.blit( self.surface, self.rect )
+            viewPortCls = viewport.ViewPort
 
-            if debugDraw:
-                self.drawBox( surface, self.rect )
-                self.drawBox( surface, self.colRect )
+            if viewPortCls.debugDraw:
+                viewPortCls.sdrawBox( surface, self.rect, colour=self.colour )
+                viewPortCls.sdrawBox( surface, self.colRect, colour=self.colour )
 
-            self.drawAttachedObjects( surface, debugDraw=debugDraw )
+            self.drawAttachedObjects( surface )
 
 
-    def drawAttachedObjects( self, surface, debugDraw = False ):
+    def drawAttachedObjects( self, surface ):
         for attachedObject in self.attachedObjects:
-            attachedObject.draw( surface, debugDraw=debugDraw )
+            attachedObject.draw( surface )
 
 
     def __getattr__( self, key ):
@@ -316,56 +312,99 @@ class Object:
 
 
 
+class ImageObject( Object ):
+    def __init__( self, pos, image, **kwArgs ):
+        self.image = image
+
+        kwArgs['ratio'] = self.calculateRatio( **kwArgs )
+
+        Object.__init__( self, pos, **kwArgs )
+
+
+    def updateSurface( self ):
+        width = self.size
+        height = int( ( float( width ) * self.ratio ) + 0.5 )
+        self.surface = pygame.transform.scale( self.image, ( width, height ) )
+
+
+    def swapImage( self, image ):
+        self.image = image
+        self.updateSurface()
+
+
+    def calculateRatio( self, **kwArgs ):
+        # The ratio of height to width.
+        image = self.image
+        ratio = float( image.get_height() ) / float( image.get_width() )
+
+        if kwArgs.has_key( 'ratio' ):
+            modRatio = kwArgs['ratio']
+
+            if modRatio:
+                ratio *= modRatio
+
+        return ratio
+
+
+
+
 class Box( Object ):
-    def __init__( self, pos, size, positionStyle = '' ):
-        Object.__init__( self, None, pos, size, positionStyle=positionStyle )
+    def __init__( self, pos, **kwArgs ):
+        Object.__init__( self, pos, **kwArgs )
+
+
+    def updateSurface( self ):
+        Object.updateSurface( self )
+
+        self.surface = self.surface.convert_alpha()
+        rect = pygame.Rect( 1, 1, self.width - 2, self.height - 2 )
+        self.surface.fill( BLACK_ALPHA, rect )
 
 
 
 
-class Shop( Object ):
-    def __init__( self, image, pos, size ):
-        Object.__init__( self, image, pos, size )
+class Shop( ImageObject ):
+    def __init__( self, pos, image, **kwArgs ):
+        ImageObject.__init__( self, pos, image, **kwArgs )
 
 
 
 
-class Bush( Object ):
-    def __init__( self, image, pos, size ):
-        Object.__init__( self, image, pos, size )
+class Bush( ImageObject ):
+    def __init__( self, pos, image, **kwArgs ):
+        ImageObject.__init__( self, pos, image, **kwArgs )
 
 
 
 
-class Arrow( Object ):
-    def __init__( self, image, pos, size ):
-        Object.__init__( self, image, pos, size )
+class Arrow( ImageObject ):
+    def __init__( self, pos, image, **kwArgs ):
+        ImageObject.__init__( self, pos, image, **kwArgs )
 
 
 
 
-class Monster( Object ):
-    def __init__( self, image, pos, size, ratio = None ):
-        Object.__init__( self, image, pos, size, ratio )
+class Monster( ImageObject ):
+    def __init__( self, pos, image, **kwArgs ):
+        ImageObject.__init__( self, pos, image, **kwArgs )
 
 
 
 
-class Coin( Object ):
-    def __init__( self, image, pos, size ):
-        Object.__init__( self, image, pos, size )
+class Coin( ImageObject ):
+    def __init__( self, pos, image, **kwArgs ):
+        ImageObject.__init__( self, pos, image, **kwArgs )
 
 
 
 
 # Creates text in world coordinates.
 class Text( Object ):
-    def __init__( self, font, text, pos, colour ):
-        self.font = font
+    def __init__( self, pos, text, **kwArgs ):
+        self.font = kwArgs.get( 'font', fontCache['basic'] )
         self.text = text
-        self.colour = colour
 
-        Object.__init__( self, None, pos, 0 )
+        Object.__init__( self, pos, **kwArgs )
 
 
     def updateSurface( self ):
@@ -376,8 +415,8 @@ class Text( Object ):
 
 # Creates static text in viewport coordinates.
 class StaticText( Text ):
-    def __init__( self, font, text, pos, colour ):
-        Text.__init__( self, font, text, pos, colour )
+    def __init__( self, pos, text, **kwArgs ):
+        Text.__init__( self, pos, text, **kwArgs )
 
 
     def update( self, camera = ORIGIN, offset = ORIGIN ):
@@ -388,14 +427,15 @@ class StaticText( Text ):
 
 
 class DebugText( StaticText ):
-    def __init__( self, font, text, pos, colour ):
-        StaticText.__init__( self, font, text, pos, colour )
+    def __init__( self, pos, text, **kwArgs ):
+        StaticText.__init__( self, pos, text, **kwArgs )
 
 
 
 class Score( StaticText ):
-    def __init__( self, font, pos, score ):
-        StaticText.__init__( self, font, 'Money: %d' % score, pos, WHITE )
+    def __init__( self, pos, score, **kwArgs ):
+        kwArgs['colour'] = kwArgs.get( 'colour', WHITE )
+        StaticText.__init__( self, pos, 'Money: %d' % score, **kwArgs )
 
 
     def updateScore( self, score ):
@@ -407,17 +447,16 @@ class Score( StaticText ):
 
 
 
-class Player( Object ):
-    def __init__( self, imageL, imageR, pos, size, movementStyle, ratio = 1.0 ):
+class Player( ImageObject ):
+    def __init__( self, pos, imageL, imageR, movementStyle, **kwArgs ):
         self.imageL = imageL
         self.imageR = imageR
-        self.left = True
         self.steps = 0
         self.movementStyle = movementStyle
         self.attachedText = None
         movementStyle.setMoveObject( self )
 
-        Object.__init__( self, imageL, pos, size, ratio=ratio )
+        ImageObject.__init__( self, pos, imageL, **kwArgs )
 
 
     # Override updateCollisionRect() from Object.
@@ -452,15 +491,15 @@ class Player( Object ):
             if self.attachedText:
                 self.detachObject( self.attachedText )
 
-            # self.attachedText = Text( fontCache['small'], horizontalMovement, Point( -20, -20 ), GREEN )
+            # self.attachedText = Text( Point( -20, -20 ), horizontalMovement, font=fontCache['small'], colour=GREEN )
             # self.attachObject( self.attachedText )
 
             if 'left' == horizontalMovement and self.image is not self.imageL:
-                self.left = True
+                self.setMirrorH( False )
                 self.swapImage( self.imageL )
             elif 'right' == horizontalMovement and self.image is not self.imageR:
                 # Flip the player image.
-                self.left = False
+                self.setMirrorH( True )
                 self.swapImage( self.imageR )
 
 

@@ -183,8 +183,8 @@ class KeyMovementStyle( MovementStyle ):
                 else:
                     newPos.y += self.moveRate.y
 
-            if horizontalMovement or self.bounce != 0:
-                self.bounce += 1
+            # if horizontalMovement or self.bounce != 0:
+            self.bounce += 1
 
             if self.bounce > self.bounceRate:
                 # Reset bounce amount.
@@ -222,6 +222,7 @@ class CollisionKeyMovementStyle( KeyMovementStyle ):
     def __init__( self, viewPort, **kwArgs ):
         KeyMovementStyle.__init__( self, **kwArgs )
         self.viewPort = viewPort
+        self.collisionPointOffset = kwArgs.get( 'collisionPointOffset', None )
 
 
     def setViewPort( self, viewPort ):
@@ -236,10 +237,18 @@ class CollisionKeyMovementStyle( KeyMovementStyle ):
             return pos
 
         moveObject = self.moveObject
-        offset = newPos - pos
+        xoff = 0
 
-        if moveObject.collidesWithColour( self.viewPort, offset ) \
-           and not moveObject.collidesWithColour( self.viewPort ):
+        if moveObject.mirrorH:
+            xoff = moveObject.width
+
+        # The offset from the object's top left position to use as the collision detection point.
+        objOffSet = Point( xoff, moveObject.height )
+        newPosOffSet = newPos - pos
+        newPosOffSet += objOffSet
+
+        if moveObject.collidesWithColour( self.viewPort, newPosOffSet ) \
+           and not moveObject.collidesWithColour( self.viewPort, objOffSet ):
             newPos = pos
 
         return newPos

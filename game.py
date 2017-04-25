@@ -1,9 +1,9 @@
 # Monkey-Rabbit Games
 # Game Engine
 
-import random, sys, time, math, pygame, copy
-from geometry import *
+import sys, pygame
 from pygame.locals import *
+from geometry import *
 from game_utils import fontCache
 
 
@@ -24,7 +24,6 @@ class Game:
         self.fpsClock = pygame.time.Clock()
         self.drawOrder = None
         self.cameraUpdates = None
-        self.debugDraw = False
 
         pygame.display.set_caption( name )
         pygame.display.set_icon( pygame.image.load( icon ) )
@@ -79,8 +78,10 @@ class Game:
                 self.terminate()
             elif K_F5 == event.key:
                 self.running = False
-            elif K_p == event.key:
-                self.debugDraw = not self.debugDraw
+            elif K_F12 == event.key:
+                import viewport
+
+                viewport.ViewPort.toggleDebugDraw()
         elif MOUSEBUTTONDOWN == event.type:
             # Remember position.
             self.clickPos = Point( event.pos )
@@ -122,7 +123,7 @@ class Game:
         viewPort.drawBackGround( gameMap.backGroundColour )
 
         # Draw all the map objects.
-        gameMap.draw( viewPort, self.drawOrder, debugDraw=self.debugDraw )
+        gameMap.draw( viewPort, self.drawOrder )
 
         viewPort.update()
 

@@ -9,6 +9,7 @@ from pygame.locals import *
 from geometry import *
 import viewport, game, game_map, game_dynamics, geometry
 from game_objects import *
+from game_constants import *
 
 
 
@@ -16,18 +17,16 @@ from game_objects import *
 # Constants.
 
 WINWIDTH = 800  # Width of the program's window, in pixels.
-WINHEIGHT = 800 # Height in pixels.
+WINHEIGHT = 600 # Height in pixels.
 
 BACKGROUND_COLOUR = (211, 211, 211)
 SHOP_FLOOR_COLOUR = (240, 180, 211)
-RED = (255, 0, 0)
-# PINK = (255, 105, 180)
 
 MOVERATE = Vector( 17, 10 ) # How fast the player moves in the x and y direction.
 BOUNCERATE = 6       # How fast the player bounces (large is slower).
 BOUNCEHEIGHT = 10    # How high the player bounces.
 MANSIZE = 30         # How big the man is.
-SHOPSIZE = 240       # How big the shops are.
+SHOPSIZE = 280       # How big the shops are.
 MONEYSIZE = 20       # How big the money is.
 ARROWSIZE = 160      # How big the arrows are.
 BUSHSIZE = 200       # How big the bushes are.
@@ -92,8 +91,8 @@ class CandySeller( game.Game ):
         self.createShops( gameMap )
 
         # Start off with some bushes on the screen.
-        gameMap.addObject( Bush( images.bush, Point( -200, 400 ), BUSHSIZE ) )
-        gameMap.addObject( Bush( images.bush, Point( 928, 400 ), BUSHSIZE ) )
+        gameMap.addObject( Bush( Point( -200, 400 ), images.bush, size=BUSHSIZE ) )
+        gameMap.addObject( Bush( Point( 928, 400 ), images.bush, size=BUSHSIZE ) )
 
         # Start off with some arrows on the screen.
         self.createArrows( gameMap )
@@ -107,7 +106,7 @@ class CandySeller( game.Game ):
 
         gameMap.changeScene( 'shops' )
 
-        gameMap.addOverlay( Score( fontCache['basic'], Point( viewPort.width - 180, 20 ), self.moneyScore ) )
+        gameMap.addOverlay( Score( Point( viewPort.width - 180, 20 ), self.moneyScore ) )
         gameMap.addPlayer( self.createPlayer() )
 
         return gameMap
@@ -126,28 +125,32 @@ class CandySeller( game.Game ):
         moveStyle.setMoveRate( MOVERATE )
         moveStyle.setBounceRates( BOUNCERATE, BOUNCEHEIGHT )
 
-        return Player( images.manL, images.manR, playerStartPos, MANSIZE, moveStyle, ratio=1.4 )
+        return Player( playerStartPos, images.manL, images.manR, moveStyle, size=MANSIZE, ratio=1.0 )
 
 
     def createShops( self, gameMap ):
         for shopNum in range( 1, 4 ):
-            shopPos = Point( ( shopNum - 1 ) * 320, 80 )
-            shop = Shop( self.images.shops[shopNum], shopPos, SHOPSIZE )
+            shopPos = Point( 140 + ( shopNum - 1 ) * 320, 140 )
+            shop = Shop( shopPos, self.images.shops[shopNum], size=SHOPSIZE, positionStyle='centre' )
             gameMap.addObject( shop )
 
 
     def createArrows( self, gameMap ):
         for arrowNum in range( 1, 4 ):
             arrowPos = Point( ( arrowNum - 1 ) * 320 + 30, 640 )
-            arrow = Arrow( self.images.arrows[arrowNum], arrowPos, ARROWSIZE )
+            arrow = Arrow( arrowPos, self.images.arrows[arrowNum], size=ARROWSIZE )
             gameMap.addObject( arrow )
 
 
     def createCoins( self, gameMap, num ):
         for ii in range( num ):
             pos = Point( random.randint( 0, WINWIDTH ), random.randint( 400, 500 ) )
-            coin = Coin( self.images.money, pos, MONEYSIZE )
+            coin = Coin( pos, self.images.money, size=MONEYSIZE )
             gameMap.addObject( coin )
+
+
+    def createMonster( self ):
+        return Monster( Point( 0, 0 ), gameMap.images.jumpscare_monster, size=MONSTERSIZE, ratio=1.4 )
 
 
     # Could move cursor description into a file and read from there.
@@ -198,7 +201,7 @@ class CandySeller( game.Game ):
             elif event.key is K_q:
                 # Releases the jumpscare if you press 'q'.
                 viewPort.playSound( "Jumpscare V2" )
-                monster = Monster( gameMap.images.jumpscare_monster, Point( 0, 0 ), MONSTERSIZE, 1.4 )
+                monster = self.createMonster()
                 gameMap.addSprite( monster )
         elif event.type == KEYUP:
             # Check if the key stops the player in a given direction.
@@ -214,8 +217,9 @@ class CandySeller( game.Game ):
             if None is self.dragPos:
                 arrow = gameMap.objectsOfType( 'Arrow' )[0]
 
-                if viewPort.collisionAtPoint( self.clickPos, arrow ):
-                    viewPort.playSound( "Money Ping" )
+                # Does the click point collide with a colour that is not the background colour.
+                if viewPort.collisionOfPoint( self.clickPos, arrow ):
+                    viewPort.playSound( 'Money Ping' )
 
 
     def updateState( self ):
@@ -254,7 +258,7 @@ class CandySeller( game.Game ):
         gameMap.score.updateScore( self.moneyScore )
 
         # Adjust camera if beyond the "camera slack".
-        playerCentre = Point( player.x + int( player.size / 2 ), player.y + int( player.size / 2 ) )
+        playerCentre = Point( player.x + int( ( float( player.size ) + 0.5 ) / 2 ), player.y + int( ( float( player.size ) + 0.5 ) / 2 ) )
         viewPort.adjustCamera( playerCentre )
 
 

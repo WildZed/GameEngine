@@ -1,9 +1,9 @@
 # Monkey-Rabbit Games
 # Game Engine
 
-import random, sys, time, math, pygame, copy
-from geometry import *
+import pygame, copy
 from pygame.locals import *
+from geometry import *
 
 
 
@@ -105,7 +105,7 @@ class ObjectStore:
             objList = objLists[objType]
 
             for obj in objList:
-                obj.draw( viewPort.displaySurface, debugDraw=debugDraw )
+                obj.draw( viewPort.displaySurface )
 
 
 
@@ -192,12 +192,12 @@ class Map:
         self.overlays.update( camera, objTypes )
 
 
-    def draw( self, viewPort, objTypes = None, debugDraw = False ):
+    def draw( self, viewPort, objTypes = None ):
         self.ensureScene()
-        self.scene.draw( viewPort, objTypes, debugDraw=debugDraw )
-        self.sprites.draw( viewPort, objTypes, debugDraw=debugDraw )
-        self.players.draw( viewPort, objTypes, debugDraw=debugDraw )
-        self.overlays.draw( viewPort, objTypes, debugDraw=debugDraw )
+        self.scene.draw( viewPort, objTypes )
+        self.sprites.draw( viewPort, objTypes )
+        self.players.draw( viewPort, objTypes )
+        self.overlays.draw( viewPort, objTypes )
 
 
     def __getattr__( self, key ):
