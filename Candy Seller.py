@@ -43,8 +43,8 @@ class CandySeller( game.Game ):
         game.Game.__init__( self, 'Candy Seller', 'gameiconc.png', viewPort )
 
         # Game one time setup.
-        self.setDrawOrder( 'Shop', 'Arrow', 'Bush', 'Coin', 'Player', 'Score', 'Monster' )
-        self.setCameraUpdates( 'Shop', 'Arrow', 'Bush', 'Coin' )
+        self.setDrawOrder( 'BackGround', 'Shop', 'Arrow', 'Bush', 'Coin', 'Player', 'Score', 'Monster' )
+        self.setCameraUpdates( 'BackGround', 'Shop', 'Arrow', 'Bush', 'Coin' )
         self.setCursor()
         viewPort.loadMusic( 'Money Ping.ogg' )
 
@@ -102,6 +102,7 @@ class CandySeller( game.Game ):
 
         gameMap.createScene( 'insideShop1', SHOP_FLOOR_COLOUR )
         gameMap.changeScene( 'insideShop1' )
+        gameMap.addObject( BackGround( ORIGIN, images.ingredients_store, size=WINWIDTH ) )
         self.createCoins( gameMap, 4 )
 
         gameMap.changeScene( 'shops' )
@@ -210,8 +211,11 @@ class CandySeller( game.Game ):
             if event.key is K_q:
                 gameMap.deleteAllObjectsOfType( 'Monster' )
             elif event.key is K_i:
+                viewPort.resetCamera()
+                player.pushPos( Point( viewPort.halfWidth, viewPort.halfHeight ), offsetOldPos=Point( 0, 20 ) )
                 gameMap.changeScene( 'insideShop1' )
             elif event.key is K_o:
+                player.popPos()
                 gameMap.changeScene( 'shops' )
         elif event.type == MOUSEBUTTONUP:
             if None is self.dragPos:
@@ -253,6 +257,13 @@ class CandySeller( game.Game ):
                     del money[ii]
                     self.moneyScore += 1
                     viewPort.playMusic()
+
+            shops = gameMap.objectsOfType( 'Shop' )
+
+            if shops and len( shops ) == 3 and player.collidesWith( shops[1] ):
+                viewPort.resetCamera()
+                player.pushPos( Point( viewPort.halfWidth, viewPort.halfHeight ), offsetOldPos=Point( 0, 20 ) )
+                gameMap.changeScene( 'insideShop1' )
 
         # Update the money score.
         gameMap.score.updateScore( self.moneyScore )

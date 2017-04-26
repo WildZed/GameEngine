@@ -56,6 +56,7 @@ class Object:
         self.name = kwArgs.get( 'name', None )
         self.visible = kwArgs.get( 'visible', True )
         self.pos = pos
+        self.posStack = []
         self.size = kwArgs.get( 'size', Object.DEFAULT_OBJECT_SIZE )
         self.ratio = kwArgs.get( 'ratio', 1.0 )
         # Default position style of 'top_left' in world coordinates is the same as '',
@@ -67,6 +68,7 @@ class Object:
         self.mirrorV = kwArgs.get( 'mirrorV', False )
         self.mirrorH = kwArgs.get( 'mirrorH', False )
         self.updateCallback = kwArgs.get( 'updateCallback', None )
+        self.lifetime = kwArgs.get( 'lifetime', None )
 
         # The position rectangle.
         self.rect = None
@@ -79,28 +81,20 @@ class Object:
         self.updateCollisionRect()
 
 
-    def setName( self, name ):
-        self.name = name
+    def pushPos( self, newPos, adjustedOldPos = None, offsetOldPos = None ):
+        if adjustedOldPos:
+            self.pos = adjustedOldPos
+        elif offsetOldPos:
+            self.pos += offsetOldPos
+
+        self.posStack.append( self.pos )
+        self.pos = newPos
 
 
-    def setParent( self, parent ):
-        self.parent = parent
+    def popPos( self ):
+        self.pos = self.posStack.pop()
 
-
-    def setPositionStyle( self, positionStyle = '' ):
-        self.positionStyle = positionStyle
-
-
-    def setMirrorV( self, on ):
-        self.mirrorV = on
-
-
-    def setMirrorH( self, on ):
-        self.mirrorH = on
-
-
-    def setUpdateCallback( self, updateCallback = None ):
-        self.updateCallback = updateCallback
+        return self.pos
 
 
     def updateSurface( self ):
@@ -140,7 +134,7 @@ class Object:
 
     def attachObject( self, obj ):
         self.attachedObjects.append( obj )
-        obj.setParent( self )
+        obj.parent = self
 
         if obj.positionStyle == '':
             obj.positionStyle = 'relative_top_left'
@@ -158,7 +152,7 @@ class Object:
 
     def detachObject( self, obj ):
         try:
-            obj.setParent( None )
+            obj.parent = None
             self.attachedObjects.remove( obj )
         except ValueError:
             obj = None
@@ -179,7 +173,7 @@ class Object:
         attachedObjectList = self.attachedObjects
 
         for attachedObject in attachedObjectList:
-            attachedObject.setParent( None )
+            attachedObject.parent = None
 
         self.attachedObjects = []
 
@@ -210,7 +204,7 @@ class Object:
 
 
     # Does the object's foot position
-    def collidesWithColour( self, viewPort, offset = ORIGIN ):
+    def collidesWithColour( self, viewPort, offset = ORIGIN, collisionColour = None ):
         # Calculate the viewport coordinate for the object's top left position
         # plus the supplied offset. The offset can be used to work out if
         # a future position will collide.
@@ -222,7 +216,7 @@ class Object:
             # print( "camera %s" % viewPort.camera )
             self.debugPos( 'collisionPos', collisionPos, positionStyle='viewport_centre', size=8 )
 
-        return viewPort.collisionOfPoint( collisionPos )
+        return viewPort.collisionOfPoint( collisionPos, collisionColour=collisionColour )
 
 
     def asRectangle( self ):
@@ -236,6 +230,16 @@ class Object:
         self.updateRect( camera, offset )
         self.updateCollisionRect()
         self.updateAttachedObjects( camera, offset )
+        self.checkLifetime()
+
+
+    def checkLifetime( self ):
+        if self.lifetime:
+            self.lifetime -= 1
+
+            if self.lifetime <= 0:
+                self.parent.detachObject( self )
+                del self
 
 
     def updateAttachedObjects( self, camera = ORIGIN, offset = ORIGIN ):
@@ -250,11 +254,15 @@ class Object:
 
 
     def debugPos( self, name, pos, **kwArgs ):
-        self.detachNamedObject( name )
-        kwArgs['size'] = kwArgs.get( 'size', 4 )
-        kwArgs['name'] = name
-        posBox = Box( pos, **kwArgs )
-        self.attachObject( posBox )
+        posBox = self.getNamedAttachedObject( name )
+
+        if not posBox:
+            kwArgs['size'] = kwArgs.get( 'size', 4 )
+            kwArgs['name'] = name
+            posBox = self.attachObject( Box( pos, **kwArgs ) )
+
+        posBox.pos = pos
+        posBox.lifetime = 80
 
 
     def draw( self, surface ):
@@ -359,6 +367,13 @@ class Box( Object ):
         self.surface = self.surface.convert_alpha()
         rect = pygame.Rect( 1, 1, self.width - 2, self.height - 2 )
         self.surface.fill( BLACK_ALPHA, rect )
+
+
+
+
+class BackGround( ImageObject ):
+    def __init__( self, pos, image, **kwArgs ):
+        ImageObject.__init__( self, pos, image, **kwArgs )
 
 
 
@@ -494,12 +509,12 @@ class Player( ImageObject ):
             # self.attachedText = Text( Point( -20, -20 ), horizontalMovement, font=fontCache['small'], colour=GREEN )
             # self.attachObject( self.attachedText )
 
-            if 'left' == horizontalMovement and self.image is not self.imageL:
-                self.setMirrorH( False )
+            if 'left' == horizontalMovement and self.mirrorH:
+                self.mirrorH = False
                 self.swapImage( self.imageL )
-            elif 'right' == horizontalMovement and self.image is not self.imageR:
+            elif 'right' == horizontalMovement and not self.mirrorH:
                 # Flip the player image.
-                self.setMirrorH( True )
+                self.mirrorH = True
                 self.swapImage( self.imageR )
 
 

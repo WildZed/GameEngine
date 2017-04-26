@@ -65,6 +65,10 @@ class ViewPort:
         fontCache.addFont( 'small', 'freesansbold', 22 )
 
 
+    def resetCamera( self ):
+        camera = Point()
+
+
     def adjustCamera( self, pos ):
         camera = self.camera
 
@@ -144,18 +148,21 @@ class ViewPort:
 
 
     # Does the point collide with a colour other than the background colour.
-    def collisionOfPoint( self, pos, obj = None ):
+    def collisionOfPoint( self, pos, obj = None, collisionColour = None ):
         # Use the object's bounding rectangle to filter the position, if provided.
         collides = ( obj is None or obj.collidesWithPoint( pos, True ) )
 
         # print "collisionAtPoint %s %s %s" % ( pos, obj.asRect(), collides )
 
         if collides:
+            if collisionColour is None:
+                collisionColour = self.backGroundColour
+
             # Find the colour on the display at the given position.
             colour = pygame.display.get_surface().get_at( pos.asTuple() )
             # Drop the mask from the return colour tuple.
             colour = colour[:3]
-            collides = ( colour != self.backGroundColour )
+            collides = ( colour != collisionColour )
 
             # print "collisionAtPoint %s col %s bgcol %s" % ( collides, colour, self.backGroundColour )
 
