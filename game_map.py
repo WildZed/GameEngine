@@ -22,6 +22,11 @@ class ImageStore:
                 image = pygame.image.load( imageFile )
                 self.__dict__[nameNoSpace + 'L'] = image
                 self.__dict__[nameNoSpace + 'R'] = pygame.transform.flip( image, True, False )
+            elif modes == 'RL':
+                imageFile = '%s.png' % name
+                image = pygame.image.load( imageFile )
+                self.__dict__[nameNoSpace + 'R'] = image
+                self.__dict__[nameNoSpace + 'L'] = pygame.transform.flip( image, True, False )
             else:
                 # Assume sequence for now.
                 self.__dict__[nameNoSpace + 's'] = images = {}

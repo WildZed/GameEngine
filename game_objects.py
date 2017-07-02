@@ -463,15 +463,19 @@ class Score( StaticText ):
 
 
 class Player( ImageObject ):
-    def __init__( self, pos, imageL, imageR, movementStyle, **kwArgs ):
-        self.imageL = imageL
-        self.imageR = imageR
+    def __init__( self, pos, movementStyle, **kwArgs ):
+        self.images = images = {}
+        images['left'] = kwArgs.get( 'imageL', None )
+        images['right'] = kwArgs.get( 'imageR', None )
+        images['up'] = kwArgs.get( 'imageUp', None )
+        images['down'] = kwArgs.get( 'imageDown', None )
+        images['image'] = kwArgs.get( 'image', self.images['left'] )
         self.steps = 0
         self.movementStyle = movementStyle
         self.attachedText = None
         movementStyle.setMoveObject( self )
 
-        ImageObject.__init__( self, pos, imageL, **kwArgs )
+        ImageObject.__init__( self, pos, self.images['left'], **kwArgs )
 
 
     # Override updateCollisionRect() from Object.
@@ -501,21 +505,30 @@ class Player( ImageObject ):
     def checkUpdatePlayerDirection( self ):
         # Flip the player image if changed direction.
         horizontalMovement = self.movementStyle.moving( 'horizontal' )
+        verticalMovement = self.movementStyle.moving( 'vertical' )
 
-        if horizontalMovement:
+        if horizontalMovement or verticalMovement:
             if self.attachedText:
                 self.detachObject( self.attachedText )
 
             # self.attachedText = Text( Point( -20, -20 ), horizontalMovement, font=fontCache['small'], colour=GREEN )
             # self.attachObject( self.attachedText )
 
-            if 'left' == horizontalMovement and self.mirrorH:
+        if horizontalMovement:
+            if 'left' == horizontalMovement and self.mirrorH and self.images.has_key( 'left' ):
                 self.mirrorH = False
-                self.swapImage( self.imageL )
-            elif 'right' == horizontalMovement and not self.mirrorH:
+                self.swapImage( self.images['left'] )
+            elif 'right' == horizontalMovement and not self.mirrorH and self.images.has_key( 'right' ):
                 # Flip the player image.
                 self.mirrorH = True
-                self.swapImage( self.imageR )
+                self.swapImage( self.images['right'] )
+        elif verticalMovement:
+            if 'up' == verticalMovement and self.images.has_key( 'up' ):
+                self.mirrorV = False
+                self.swapImage( self.images['up'] )
+            elif 'down' == verticalMovement and self.images.has_key( 'down' ):
+                self.mirrorV = True
+                self.swapImage( self.images['down'] )
 
 
     def setMovement( self, key ):
