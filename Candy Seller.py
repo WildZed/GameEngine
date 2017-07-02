@@ -7,7 +7,7 @@
 import random, sys, time, math, pygame
 from pygame.locals import *
 from geometry import *
-import viewport, game, game_map, game_dynamics, geometry
+import viewport, game, game_map, game_dynamics
 from game_objects import *
 from game_constants import *
 
