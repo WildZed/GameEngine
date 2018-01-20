@@ -149,6 +149,11 @@ class ViewPort:
 
     # Does the point collide with a colour other than the background colour.
     def collisionOfPoint( self, pos, obj = None, collisionColour = None ):
+        collides = ( 0 > pos.x or pos.x >= self.width ) or ( 0 > pos.y or pos.y >= self.height )
+
+        if collides:
+            return True
+
         # Use the object's bounding rectangle to filter the position, if provided.
         collides = ( obj is None or obj.collidesWithPoint( pos, True ) )
 
@@ -157,6 +162,7 @@ class ViewPort:
         if collides:
             if collisionColour is None:
                 collisionColour = self.backGroundColour
+            print pos
 
             # Find the colour on the display at the given position.
             colour = pygame.display.get_surface().get_at( pos.asTuple() )
