@@ -117,6 +117,7 @@ class RectangleBoundary( Boundary ):
 
 
 # Bound object positions by collision with colour different from the viewport background colour.
+# This needs some work because it can't cope with positions outside the viewport.
 class CollisionBoundary( Boundary ):
     def __init__( self, viewPort, **kwArgs ):
         self.viewPort = viewPort
