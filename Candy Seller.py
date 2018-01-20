@@ -120,9 +120,9 @@ class CandySeller( game.Game ):
         playerStartPos = Point( viewPort.halfWidth, viewPort.halfHeight )
 
         # Sets up the movement style of the player.
-        playerBounds = Rectangle( Point( 0, 220 ), Point( 900, 550 ) )
-        # moveStyle = game_dynamics.BoundedKeyMovementStyle( playerBounds )
-        moveStyle = game_dynamics.CollisionKeyMovementStyle( viewPort )
+        # playerBounds = game_dynamics.RectangleBoundary( Rectangle( Point( 0, 220 ), Point( 900, 550 ) ) )
+        playerBounds = game_dynamics.CollisionBoundary( viewPort )
+        moveStyle = game_dynamics.KeyMovementStyle( boundaryStyle=playerBounds )
         moveStyle.setMoveRate( MOVERATE )
         moveStyle.setBounceRates( BOUNCERATE, BOUNCEHEIGHT )
 

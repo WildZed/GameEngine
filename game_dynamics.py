@@ -2,6 +2,7 @@
 # Game Dynamics
 
 import copy
+import random
 from pygame.locals import *
 from geometry import *
 
@@ -16,6 +17,8 @@ DEFAULT_KEYSMAP = {
     'up'    : ( K_UP, K_w, ),
     'down'  : ( K_DOWN, K_s )
 }
+
+DIRECTION_LIST = ( 'left', 'right', 'up', 'down' )
 
 
 
@@ -35,6 +38,10 @@ class Directions:
 
 
     def __init__( self ):
+        self.reset()
+
+
+    def reset( self ):
         self.left = False
         self.right = False
         self.up = False
@@ -86,10 +93,65 @@ class Directions:
 
 
 
+class Boundary:
+    def __init__( self ):
+        pass
+
+
+    def getBoundedPosition( self, oldPos, newPos ):
+        return newPos
+
+
+
+
+# Bound positions by rectangular area.
+class RectangleBoundary( Boundary ):
+    def __init__( self, rect ):
+        self.rect = rect
+
+
+    def getBoundedPosition( self, moveObject, oldPos, newPos ):
+        return self.rect.boundPoint( newPos )
+
+
+
+
+# Bound object positions by collision with colour different from the viewport background colour.
+class CollisionBoundary( Boundary ):
+    def __init__( self, viewPort, **kwArgs ):
+        self.viewPort = viewPort
+        self.collisionPointOffset = kwArgs.get( 'collisionPointOffset', None )
+
+
+    # Implement the boundaries by collision.
+    def getBoundedPosition( self, moveObject, oldPos, newPos ):
+        xoff = 0
+
+        if moveObject.mirrorH:
+            xoff = moveObject.width
+
+        # The offset from the object's top left position to use as the collision detection point.
+        objOffSet = Point( xoff, moveObject.height )
+        newPosOffSet = newPos - oldPos
+        newPosOffSet += objOffSet
+
+        if moveObject.collidesWithColour( self.viewPort, newPosOffSet ) \
+           and not moveObject.collidesWithColour( self.viewPort, objOffSet ):
+            newPos = oldPos
+
+        return newPos
+
+
+
+
 # Interface of all movement Styles.
 class MovementStyle:
     def __init__( self ):
         self.moveObject = None
+
+
+    def getMoveObject( self ):
+        return self.moveObject
 
 
     def setMoveObject( self, moveObject ):
@@ -107,33 +169,15 @@ class MovementStyle:
 
 
 
-class KeyMovementStyle( MovementStyle ):
-    def __init__( self, moveRate = DEFAULT_MOVERATE, bounceRate = 0, bounceHeight = 0 ):
+class GeneralMovementStyle( MovementStyle ):
+    def __init__( self, moveRate = DEFAULT_MOVERATE, bounceRate = 0, bounceHeight = 0, boundaryStyle = None ):
         self.moveBounds = None
         self.moveRate = moveRate
         self.bounceRate = bounceRate
         self.bounceHeight = bounceHeight
         self.directions = Directions()
         self.bounce = 0
-        self.dirToKeysMap = DEFAULT_KEYSMAP
-        self.allDirsToKeysMap = copy.copy( DEFAULT_KEYSMAP )
-        self.createKeyToDirMap()
-
-
-    def createKeyToDirMap( self ):
-        dirToKeysMap = self.dirToKeysMap
-        self.keyToDirMap = keyToDirMap = {}
-
-        for direction in dirToKeysMap.keys():
-            keys = dirToKeysMap[direction]
-
-            for key in keys:
-                keyToDirMap[key] = direction
-
-        allDirsToKeysMap = self.allDirsToKeysMap
-        allDirsToKeysMap['horizontal'] = dirToKeysMap['left'] + dirToKeysMap['right']
-        allDirsToKeysMap['vertical'] = dirToKeysMap['up'] + dirToKeysMap['down']
-        allDirsToKeysMap['all'] = allDirsToKeysMap['horizontal'] + allDirsToKeysMap['vertical']
+        self.boundaryStyle = boundaryStyle
 
 
     def setMoveRate( self, moveRate ):
@@ -145,22 +189,31 @@ class KeyMovementStyle( MovementStyle ):
         self.bounceHeight = bounceHeight
 
 
-    def setMovement( self, key ):
-        if key in self.allDirsToKeysMap['all']:
-            direction = self.keyToDirMap[key]
-            self.directions[direction] = True
+    def setBoundaryStyle( self, boundaryStyle ):
+        self.boundaryStyle = boundaryStyle
 
 
-    def stopMovement( self, key = None ):
-        if not key:
-            self.directions = {}
-        elif key in self.allDirsToKeysMap['all']:
-            direction = self.keyToDirMap[key]
+    def setMovement( self, direction ):
+        self.directions[direction] = True
+
+
+    def stopMovement( self, direction = None ):
+        if not direction:
+            self.directions.reset()
+        else:
             self.directions[direction] = False
 
 
     def moving( self, direction = 'any' ):
         return self.directions[direction]
+
+
+    # No boundary for general movement.
+    def getBoundedPosition( self, oldPos, newPos ):
+        if self.boundaryStyle:
+            newPos = self.boundaryStyle.getBoundedPosition( self.getMoveObject(), oldPos, newPos )
+
+        return newPos
 
 
     # Get the new position based on the movement style.
@@ -190,65 +243,75 @@ class KeyMovementStyle( MovementStyle ):
                 # Reset bounce amount.
                 self.bounce = 0
 
+            if newPos != pos:
+                newPos = self.getBoundedPosition( pos, newPos )
+
         return newPos
 
 
 
 
-class BoundedKeyMovementStyle( KeyMovementStyle ):
-    def __init__( self, moveBounds, **kwArgs ):
-        KeyMovementStyle.__init__( self, **kwArgs )
-        self.moveBounds = moveBounds
+# Move by key presses.
+class KeyMovementStyle( GeneralMovementStyle ):
+    def __init__( self, **kwArgs ):
+        GeneralMovementStyle.__init__( self, **kwArgs )
+        self.dirToKeysMap = DEFAULT_KEYSMAP
+        self.allDirsToKeysMap = copy.copy( DEFAULT_KEYSMAP )
+        self.createKeyToDirMap()
 
 
-    def setMoveBounds( self, bounds ):
-        self.moveBounds = bounds
+    def createKeyToDirMap( self ):
+        dirToKeysMap = self.dirToKeysMap
+        self.keyToDirMap = keyToDirMap = {}
+
+        for direction in dirToKeysMap.keys():
+            keys = dirToKeysMap[direction]
+
+            for key in keys:
+                keyToDirMap[key] = direction
+
+        allDirsToKeysMap = self.allDirsToKeysMap
+        allDirsToKeysMap['horizontal'] = dirToKeysMap['left'] + dirToKeysMap['right']
+        allDirsToKeysMap['vertical'] = dirToKeysMap['up'] + dirToKeysMap['down']
+        allDirsToKeysMap['all'] = allDirsToKeysMap['horizontal'] + allDirsToKeysMap['vertical']
+
+
+    def setMovement( self, key ):
+        if key in self.allDirsToKeysMap['all']:
+            direction = self.keyToDirMap[key]
+            GeneralMovementStyle.setMovement( self, direction )
+
+
+    def stopMovement( self, key = None ):
+        if not key:
+            GeneralMovementStyle.stopMovement( self )
+        elif key in self.allDirsToKeysMap['all']:
+            direction = self.keyToDirMap[key]
+            GeneralMovementStyle.stopMovement( self, direction )
+
+
+
+
+# Move randomly bounded by collisions with colour that is not the background colour.
+class RandomWalkMovementStyle( GeneralMovementStyle ):
+    def __init__( self, **kwArgs ):
+        GeneralMovementStyle.__init__( self, **kwArgs )
+
+
+    def decideMovement( self ):
+        rand = random.random()
+
+        if rand > 0.8:
+            direction = random.choice( DIRECTION_LIST )
+            GeneralMovementStyle.setMovement( self, direction )
+        elif rand < 0.1:
+            GeneralMovementStyle.stopMovement( self )
+        # Continue in the current direction.
+
 
 
     # Get the new position based on the movement style.
     def move( self, pos ):
-        newPos = KeyMovementStyle.move( self, pos )
+        self.decideMovement()
 
-        if newPos != pos:
-            # Restrict the player's movement to the specified boundary.
-            newPos = self.moveBounds.boundPoint( newPos )
-
-        return newPos
-
-
-
-
-class CollisionKeyMovementStyle( KeyMovementStyle ):
-    def __init__( self, viewPort, **kwArgs ):
-        KeyMovementStyle.__init__( self, **kwArgs )
-        self.viewPort = viewPort
-        self.collisionPointOffset = kwArgs.get( 'collisionPointOffset', None )
-
-
-    def setViewPort( self, viewPort ):
-        self.viewPort = viewPort
-
-
-    # Get the new position based on the movement style.
-    def move( self, pos ):
-        newPos = KeyMovementStyle.move( self, pos )
-
-        if newPos == pos:
-            return pos
-
-        moveObject = self.moveObject
-        xoff = 0
-
-        if moveObject.mirrorH:
-            xoff = moveObject.width
-
-        # The offset from the object's top left position to use as the collision detection point.
-        objOffSet = Point( xoff, moveObject.height )
-        newPosOffSet = newPos - pos
-        newPosOffSet += objOffSet
-
-        if moveObject.collidesWithColour( self.viewPort, newPosOffSet ) \
-           and not moveObject.collidesWithColour( self.viewPort, objOffSet ):
-            newPos = pos
-
-        return newPos
+        return GeneralMovementStyle.move( self, pos )

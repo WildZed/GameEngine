@@ -188,9 +188,9 @@ class ViewPort:
         pygame.mixer.music.load( musicFile )
 
 
-    def playMusic( self ):
+    def playMusic( self, loops = 0 ):
         try:
-            pygame.mixer.music.play( loops=0, start=0.0 )
+            pygame.mixer.music.play( loops=loops, start=0.0 )
         except:
             import traceback
 

@@ -97,7 +97,8 @@ class Game:
 
     # Update the state of the game.
     def updateState( self ):
-        pass
+        # Move the sprites and other dynamic objects.
+        self.gameMap.move()
 
 
     # Update the positions of all the map objects according to the camera and new positions.

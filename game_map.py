@@ -6,6 +6,9 @@ from pygame.locals import *
 from geometry import *
 
 
+# Temporary constant.
+DEFAULT_BACKGROUND_COLOUR = (211, 211, 211)
+
 
 
 class ImageStore:
@@ -58,6 +61,7 @@ class ObjectStore:
         else:
             objLists[objType] = objList = []
 
+
         objList.append(obj)
 
 
@@ -93,6 +97,18 @@ class ObjectStore:
 
             for obj in objList:
                 obj.update( camera )
+
+
+    def move( self ):
+        objLists = self.objectLists
+        objTypes = objLists.keys()
+
+        for objType in objTypes:
+            objList = objLists[objType]
+
+            for obj in objList:
+                if hasattr( obj, 'move' ):
+                    obj.move()
 
 
     def draw( self, viewPort, objTypes = None, debugDraw = False ):
@@ -151,7 +167,7 @@ class Map:
 
     def ensureScene( self ):
         if not self.scene:
-            self.scene = Scene( 'default', BACKGROUND_COLOUR )
+            self.scene = Scene( 'default', DEFAULT_BACKGROUND_COLOUR )
 
 
     def changeScene( self, name ):
@@ -192,9 +208,14 @@ class Map:
     def update( self, camera, objTypes = None ):
         self.ensureScene()
         self.scene.update( camera, objTypes )
-        self.sprites.update( camera, objTypes )
+        # Always update the sprites after the scene.
+        self.sprites.update( camera )
         # self.players.update( camera, objTypes )
         self.overlays.update( camera, objTypes )
+
+
+    def move( self ):
+        self.sprites.move()
 
 
     def draw( self, viewPort, objTypes = None ):

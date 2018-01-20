@@ -81,6 +81,14 @@ class Object:
         self.updateCollisionRect()
 
 
+    def __repr__( self ):
+        return "%s: '%s' %s" % ( self.__class__.__name__, self.name, self.pos )
+
+
+    def setVisible( self, visible ):
+        self.visible = visible
+
+
     def pushPos( self, newPos, adjustedOldPos = None, offsetOldPos = None ):
         if adjustedOldPos:
             self.pos = adjustedOldPos
@@ -189,6 +197,7 @@ class Object:
         return self.colRect.colliderect( obj.colRect )
 
 
+    # Ask if the given position collides with the object's full or collision rectangle.
     def collidesWithPoint( self, pos, useFullRect = False ):
         if useFullRect:
             rect = self.rect
@@ -203,7 +212,7 @@ class Object:
         return collides
 
 
-    # Does the object's foot position
+    # Does the object's foot position collide with the collision colour (default is a colour that is not the background colour).
     def collidesWithColour( self, viewPort, offset = ORIGIN, collisionColour = None ):
         # Calculate the viewport coordinate for the object's top left position
         # plus the supplied offset. The offset can be used to work out if
@@ -462,7 +471,7 @@ class Score( StaticText ):
 
 
 
-class Player( ImageObject ):
+class DynamicObject( ImageObject ):
     def __init__( self, pos, movementStyle, **kwArgs ):
         self.images = images = {}
         images['left'] = kwArgs.get( 'imageL', None )
@@ -478,18 +487,6 @@ class Player( ImageObject ):
         ImageObject.__init__( self, pos, self.images['left'], **kwArgs )
 
 
-    # Override updateCollisionRect() from Object.
-    def updateCollisionRect( self ):
-        # Use a smaller collision rectangle that represents the players feet.
-        self.colRect = colRect = self.rect.copy()
-        # Collision rect from feet to a quarter height.
-        colRect.top = colRect.top + ( ( colRect.height * 3 ) / 4 )
-        colRect.height = colRect.height / 4
-        # Collision rect thinner than the image width by a quarter on each side.
-        # colRect.left = colRect.left + ( colRect.width / 4 )
-        # colRect.width = colRect.width / 2
-
-
     def getBounceAmount( self ):
         # Returns the number of pixels to offset based on the bounce.
         # Larger bounceRate means a slower bounce.
@@ -502,7 +499,7 @@ class Player( ImageObject ):
         return int( math.sin( ( math.pi / float( bounceRate ) ) * movementStyle.bounce ) * bounceHeight )
 
 
-    def checkUpdatePlayerDirection( self ):
+    def checkUpdateObjectDirection( self ):
         # Flip the player image if changed direction.
         horizontalMovement = self.movementStyle.moving( 'horizontal' )
         verticalMovement = self.movementStyle.moving( 'vertical' )
@@ -525,20 +522,21 @@ class Player( ImageObject ):
         elif verticalMovement:
             if 'up' == verticalMovement and self.images.has_key( 'up' ):
                 self.mirrorV = False
-                self.swapImage( self.images['up'] )
+                #self.swapImage( self.images['up'] )
             elif 'down' == verticalMovement and self.images.has_key( 'down' ):
                 self.mirrorV = True
-                self.swapImage( self.images['down'] )
+                #self.swapImage( self.images['down'] )
+                # Up and down images are only for Sheriff Quest, so I suggest making seperate files.
 
 
     def setMovement( self, key ):
         self.movementStyle.setMovement( key )
-        self.checkUpdatePlayerDirection()
+        self.checkUpdateObjectDirection()
 
 
     def stopMovement( self, key ):
         self.movementStyle.stopMovement( key )
-        self.checkUpdatePlayerDirection()
+        self.checkUpdateObjectDirection()
 
 
     def move( self ):
@@ -550,13 +548,40 @@ class Player( ImageObject ):
             self.steps += 1
 
 
-    def update( self, camera, gameOverMode, invulnerableMode ):
+    def update( self, camera = ORIGIN, offset = ORIGIN, gameOverMode = False, invulnerableMode = False ):
         flashIsOn = round( time.time(), 1 ) * 10 % 2 == 1
 
         if not gameOverMode and not ( invulnerableMode and flashIsOn ):
-            jitter = Point( 0, - self.getBounceAmount() )
-            Object.update( self, camera, jitter )
-            self.visible = True
-        else:
-            self.visible = False
+            if offset == ORIGIN :
+                # Add jitter or bounce as an offset.
+                offset = Point( 0, - self.getBounceAmount() )
 
+            Object.update( self, camera, offset )
+            self.setVisible( True )
+        else:
+            self.setVisible( False )
+
+
+
+
+class Player( DynamicObject ):
+    def __init__( self, pos, movementStyle, **kwArgs ):
+        DynamicObject.__init__( self, pos, movementStyle, **kwArgs )
+
+
+    # Override updateCollisionRect() from Object.
+    def updateCollisionRect( self ):
+        # Use a smaller collision rectangle that represents the player's feet.
+        self.colRect = colRect = self.rect.copy()
+        # Collision rect from feet to a quarter height.
+        colRect.top = colRect.top + ( ( colRect.height * 3 ) / 4 )
+        colRect.height = colRect.height / 4
+        # Collision rect thinner than the image width by a quarter on each side.
+        # colRect.left = colRect.left + ( colRect.width / 4 )
+        # colRect.width = colRect.width / 2
+
+
+
+class Sprite( DynamicObject ):
+    def __init__( self, pos, movementStyle, **kwArgs ):
+        DynamicObject.__init__( self, pos, movementStyle, **kwArgs )
