@@ -80,6 +80,22 @@ class Point:
 
 
 
+class UnitPoint( Point ):
+    def __init__( self, posOrX = None, y = None ):
+        Point.__init__( self, posOrX, y )
+        self.x = self.unitCoord( self.x )
+        self.y = self.unitCoord( self.y )
+
+
+    def unitCoord( self, coord ):
+        if coord:
+            coord = coord / abs( coord )
+
+        return coord
+
+
+
+
 class Rectangle:
     def __init__( self, rectOrll = None, ur = None ):
         if rectOrll is None:

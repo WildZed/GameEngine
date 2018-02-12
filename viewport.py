@@ -72,6 +72,9 @@ class ViewPort:
     def adjustCamera( self, pos ):
         camera = self.camera
 
+        # print "Camera %s" % camera
+        # print "Pos %s" % pos
+
         if ( ( camera.x + self.halfWidth ) - pos.x ) > CAMERASLACK:
             camera.x = pos.x + CAMERASLACK - self.halfWidth
         elif ( pos.x - ( camera.x + self.halfWidth ) ) > CAMERASLACK:
@@ -162,7 +165,37 @@ class ViewPort:
         if collides:
             if collisionColour is None:
                 collisionColour = self.backGroundColour
-            print pos
+
+            # print pos
+
+            # Find the colour on the display at the given position.
+            colour = pygame.display.get_surface().get_at( pos.asTuple() )
+            # Drop the mask from the return colour tuple.
+            colour = colour[:3]
+            collides = ( colour != collisionColour )
+
+            # print "collisionAtPoint %s col %s bgcol %s" % ( collides, colour, self.backGroundColour )
+
+        return collides
+
+
+    # Does the point collide with a colour other than the background colour.
+    def collisionOfRect( self, rect, obj = None, collisionColour = None ):
+        collides = ( 0 > pos.x or pos.x >= self.width ) or ( 0 > pos.y or pos.y >= self.height )
+
+        if collides:
+            return True
+
+        # Use the object's bounding rectangle to filter the position, if provided.
+        collides = ( obj is None or obj.collidesWithPoint( pos, True ) )
+
+        # print "collisionAtPoint %s %s %s" % ( pos, obj.asRect(), collides )
+
+        if collides:
+            if collisionColour is None:
+                collisionColour = self.backGroundColour
+
+            # print pos
 
             # Find the colour on the display at the given position.
             colour = pygame.display.get_surface().get_at( pos.asTuple() )

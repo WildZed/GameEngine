@@ -50,6 +50,19 @@ class Directions:
         self.vertical = False
 
 
+    def reverseDirection( self, direction ):
+        if direction == 'horizontal':
+            if self.horizontal == 'left':
+                self.horizontal = 'right'
+            elif self.horizontal == 'right':
+                self.horizontal = 'left'
+        elif direction == 'vertical':
+            if self.vertical == 'up':
+                self.vertical = 'down'
+            elif self.vertical == 'down':
+                self.vertical = 'up'
+
+
     def __getattr__( self, key ):
         # if key == 'horizontal':
         #     value = self.__dict__['left'] or self.__dict__['right']
@@ -73,6 +86,7 @@ class Directions:
             else:
                 axisValue = False
 
+                # Checking for other movement in the same axis.
                 for direction in Directions.AXES[axis]:
                     if self.__dict__.has_key( direction ) and self.__dict__[direction]:
                         axisValue = direction
@@ -91,14 +105,39 @@ class Directions:
         return self.__setattr__( key, value )
 
 
+    def __repr__( self ):
+        return "left %s right %s up %s down %s horizontal %s vertical %s" % ( self.left, self.right, self.up, self.down, self.horizontal, self.vertical )
+
+
 
 
 class Boundary:
     def __init__( self ):
-        pass
+        self.resetBlocked()
 
 
-    def getBoundedPosition( self, oldPos, newPos ):
+    def resetBlocked( self ):
+        self.blockedHorizontally = False
+        self.blockedVertically = False
+
+
+    def getBlockedHorizontally( self ):
+        return self.blockedHorizontally
+
+
+    def setBlockedHorizontally( self, val = True ):
+        self.blockedHorizontally = val
+
+
+    def getBlockedVertically( self ):
+        return self.blockedVertically
+
+
+    def setBlockedVertically( self, val = True ):
+        self.blockedVertically = val
+
+
+    def getBoundedPosition( self, newPos ):
         return newPos
 
 
@@ -110,7 +149,7 @@ class RectangleBoundary( Boundary ):
         self.rect = rect
 
 
-    def getBoundedPosition( self, moveObject, oldPos, newPos ):
+    def getBoundedPosition( self, moveObject, newPos ):
         return self.rect.boundPoint( newPos )
 
 
@@ -122,23 +161,51 @@ class CollisionBoundary( Boundary ):
     def __init__( self, viewPort, **kwArgs ):
         self.viewPort = viewPort
         self.collisionPointOffset = kwArgs.get( 'collisionPointOffset', None )
+        self.resetBlocked()
+
+
+    def collides( self, moveObject, newPos ):
+        # Temporarily move to new position to check for collision.
+        moveObject.pushPos( newPos )
+        moveObject.updateRect()
+        collides = moveObject.collidesWithScene()
+        moveObject.popPos()
+        moveObject.updateRect()
+
+        return collides
 
 
     # Implement the boundaries by collision.
-    def getBoundedPosition( self, moveObject, oldPos, newPos ):
-        xoff = 0
+    def getBoundedPosition( self, moveObject, newPos ):
+        # Trigger collision events here? Or store on object?
+        self.resetBlocked()
+        collides = self.collides( moveObject, newPos )
 
-        if moveObject.mirrorH:
-            xoff = moveObject.width
+        if collides:
+            # Now check offset x and y separately.
+            curPos = moveObject.getPos()
+            origNewPos = newPos
+            offsetPos = newPos - curPos
+            self.setBlockedVertically()
+            newPos = curPos + Point( offsetPos.x, 0 )
+            collides = self.collides( moveObject, newPos )
 
-        # The offset from the object's top left position to use as the collision detection point.
-        objOffSet = Point( xoff, moveObject.height )
-        newPosOffSet = newPos - oldPos
-        newPosOffSet += objOffSet
+            if collides:
+                self.setBlockedHorizontally()
+                newPos = curPos + Point( 0, offsetPos.y )
+                collides = self.collides( moveObject, newPos )
 
-        if moveObject.collidesWithColour( self.viewPort, newPosOffSet ) \
-           and not moveObject.collidesWithColour( self.viewPort, objOffSet ):
-            newPos = oldPos
+                if collides:
+                    collides = self.collides( moveObject, curPos )
+
+                    if collides:
+                        # Accept newPos if current pos is already colliding.
+                        # nudge = UnitPoint( offsetPos )
+                        newPos = curPos # + nudge
+                    else:
+                        newPos = curPos
+                else:
+                    self.setBlockedVertically( False )
 
         return newPos
 
@@ -198,11 +265,19 @@ class GeneralMovementStyle( MovementStyle ):
         self.directions[direction] = True
 
 
+    def reverseMovement( self, direction ):
+        self.directions.reverseDirection( direction )
+
+
     def stopMovement( self, direction = None ):
-        if not direction:
+        if direction is None:
             self.directions.reset()
         else:
             self.directions[direction] = False
+
+
+    def getBoundaryStyle( self ):
+        return self.boundaryStyle
 
 
     def moving( self, direction = 'any' ):
@@ -210,9 +285,9 @@ class GeneralMovementStyle( MovementStyle ):
 
 
     # No boundary for general movement.
-    def getBoundedPosition( self, oldPos, newPos ):
+    def getBoundedPosition( self, newPos ):
         if self.boundaryStyle:
-            newPos = self.boundaryStyle.getBoundedPosition( self.getMoveObject(), oldPos, newPos )
+            newPos = self.boundaryStyle.getBoundedPosition( self.getMoveObject(), newPos )
 
         return newPos
 
@@ -245,7 +320,7 @@ class GeneralMovementStyle( MovementStyle ):
                 self.bounce = 0
 
             if newPos != pos:
-                newPos = self.getBoundedPosition( pos, newPos )
+                newPos = self.getBoundedPosition( newPos )
 
         return newPos
 
@@ -284,7 +359,7 @@ class KeyMovementStyle( GeneralMovementStyle ):
 
 
     def stopMovement( self, key = None ):
-        if not key:
+        if key is None:
             GeneralMovementStyle.stopMovement( self )
         elif key in self.allDirsToKeysMap['all']:
             direction = self.keyToDirMap[key]
@@ -302,11 +377,12 @@ class RandomWalkMovementStyle( GeneralMovementStyle ):
     def decideMovement( self ):
         rand = random.random()
 
-        if rand > 0.8:
-            direction = random.choice( DIRECTION_LIST )
-            GeneralMovementStyle.setMovement( self, direction )
-        elif rand < 0.1:
-            GeneralMovementStyle.stopMovement( self )
+        if rand < 0.05:
+            if rand < 0.04:
+                direction = random.choice( DIRECTION_LIST )
+                self.setMovement( direction )
+            else:
+                self.stopMovement()
         # Continue in the current direction.
 
 
@@ -315,4 +391,23 @@ class RandomWalkMovementStyle( GeneralMovementStyle ):
     def move( self, pos ):
         self.decideMovement()
 
-        return GeneralMovementStyle.move( self, pos )
+        newPos = GeneralMovementStyle.move( self, pos )
+        boundaryStyle = self.getBoundaryStyle()
+
+        if boundaryStyle.getBlockedHorizontally():
+            rand = random.random()
+
+            if rand < 0.6:
+                self.reverseMovement( 'vertical' )
+            else:
+                self.stopMovement( 'horizontal' )
+
+        if boundaryStyle.getBlockedVertically():
+            rand = random.random()
+
+            if rand < 0.6:
+                self.reverseMovement( 'horizontal' )
+            else:
+                self.stopMovement( 'vertical' )
+
+        return newPos

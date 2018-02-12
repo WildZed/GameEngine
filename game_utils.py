@@ -29,5 +29,20 @@ class FontCache:
 
 
 
+def debugPrintMask( mask ):
+    width, height = mask.get_size()
+
+    for y in range( height ):
+        line = ''
+
+        for x in range( width ):
+            if mask.get_at( (x, y) ):
+                line += 'O'
+            else:
+                line += ' '
+
+        print line
+
+
 
 fontCache = FontCache()

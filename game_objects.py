@@ -5,7 +5,7 @@ import random, time, math, pygame, copy
 import viewport
 from pygame.locals import *
 from geometry import *
-from game_utils import fontCache
+from game_utils import fontCache, debugPrintMask
 from game_constants import *
 
 
@@ -53,6 +53,7 @@ class Object:
         # self.width  = ( generalSize + random.randint( 0, 10 ) ) * multiplier
         # self.height = ( generalSize + random.randint( 0, 10 ) ) * multiplier
         self.parent = None
+        self.scene = None
         self.name = kwArgs.get( 'name', None )
         self.visible = kwArgs.get( 'visible', True )
         self.pos = pos
@@ -73,12 +74,17 @@ class Object:
         # The position rectangle.
         self.rect = None
         self.colRect = None
-        self.surface = None
+        self.vpRect = None
+        self.vpColRect = None
         self.attachedObjects = []
-
+        self.surface = None
+        # The mask used for collision detection.
+        self.mask = None
+        # Keep hold of the surface used to create the mask for debugging purposes.
+        self.maskSurface = None
+        # Surface created first. Rects are calculated from the surface width and height.
         self.updateSurface()
         self.updateRect()
-        self.updateCollisionRect()
 
 
     def __repr__( self ):
@@ -88,6 +94,24 @@ class Object:
     def setVisible( self, visible ):
         self.visible = visible
 
+
+    def getScene( self ):
+        return self.scene
+
+
+    # Only call from Scene.
+    def setScene( self, scene ):
+        self.scene = scene
+
+
+    def moveToScene( self, scene ):
+        # Cannot use this to add or delete from scene.
+        if scene and self.scene:
+            self.scene.moveObjectToScene( self, scene )
+
+
+    def getPos( self ):
+        return self.pos
 
     def pushPos( self, newPos, adjustedOldPos = None, offsetOldPos = None ):
         if adjustedOldPos:
@@ -105,19 +129,70 @@ class Object:
         return self.pos
 
 
+    def getWidth( self ):
+        return self.size
+
+
+    def getHeight( self ):
+        return int( ( float( self.size ) * self.ratio ) + 0.5 )
+
+
+    def getSurface( self ):
+        width = self.getWidth()
+        height = self.getHeight()
+        surface = pygame.Surface( ( width, height ) )
+        surface.fill( self.colour )
+
+        return surface
+
+
+    # Get a mask surface given a surface (image display object).
+    def getMaskSurface( self, surface ):
+        width, height = surface.get_size()
+        # Create a surface of the given surface's width and height.
+        # maskSurface = pygame.Surface( ( width, height ) )
+        maskSurface = pygame.Surface.copy( surface )
+        maskSurface.fill( 0 )
+        # Get rect and collision rect relative to ORIGIN for blitting just the collision part of the image.
+        rect = self.getRect()
+        colRect = self.getCollisionRect( rect )
+        relTop = colRect.top - rect.top
+        relLeft = colRect.left - rect.left
+        # Area of surface to blit onto maskSurface.
+        blitArea = ( relLeft, relTop, colRect.width, colRect.height )
+        # Destination in maskSurface needs to match area.
+        dest = ( relLeft, relTop )
+        maskSurface.blit( surface, dest, area=blitArea )
+
+        return maskSurface
+
+
     def updateSurface( self ):
-        width = self.size
-        height = int( ( float( width ) * self.ratio ) + 0.5 )
-        self.surface = pygame.Surface( ( width, height ) )
-        self.surface.fill( self.colour )
+        self.surface = self.getSurface()
+        self.maskSurface = self.getMaskSurface( self.surface )
+        self.mask = pygame.mask.from_surface( self.maskSurface )
 
 
-    def updateRect( self, camera = ORIGIN, offset = ORIGIN ):
+    def getPositionStyleOffset( self, camera = ORIGIN, offset = ORIGIN ):
+        if self.positionStyle[:8] == 'viewport':
+            offset = camera - offset
+
+        return offset
+
+
+    def getViewportPositionStyleOffset( self, camera = ORIGIN, offset = ORIGIN ):
         if self.positionStyle[:8] != 'viewport':
             offset = offset - camera
 
-        # self.rect = self.surface.get_rect()
-        self.rect = self.getOffSetRect( offset )
+        return offset
+
+
+    def updateRect( self, camera = ORIGIN, offset = ORIGIN ):
+        # Normally the offset is ORIGIN and the world coordinate rectangle is returned.
+        self.rect = self.getRect( camera, offset )
+        self.colRect = self.getCollisionRect( self.rect )
+        self.vpRect = self.getViewportRect( camera, offset )
+        self.vpColRect = self.getCollisionRect( self.vpRect )
 
 
     # Get the object's surface top left position given an offset
@@ -188,16 +263,60 @@ class Object:
         return attachedObjectList
 
 
-    def updateCollisionRect( self ):
-        # The collision rectangle.
-        self.colRect = self.rect
+    def getRect( self, camera = ORIGIN, offset = ORIGIN ):
+        offset = self.getPositionStyleOffset( camera, offset )
+
+        # Normally the offset is ORIGIN and the world coordinate rectangle is returned.
+        return self.getOffSetRect( offset )
 
 
-    def collidesWith( self, obj ):
-        return self.colRect.colliderect( obj.colRect )
+    def getCollisionRect( self, rect ):
+        # The default collision rectangle is the same as the object's rectangle.
+        return rect
 
 
-    # Ask if the given position collides with the object's full or collision rectangle.
+    def getViewportRect( self, camera = ORIGIN, offset = ORIGIN ):
+        offset = self.getViewportPositionStyleOffset( camera, offset )
+
+        # self.vpRect = self.surface.get_rect()
+        return self.getOffSetRect( offset )
+
+
+    def getSceneCollisions( self, pos ):
+        if not self.scene:
+            return []
+
+        return self.scene.getCollisions( self )
+
+
+    def collidesWithScene( self ):
+        if not self.scene:
+            return False
+
+        collides = self.scene.collides( self )
+
+        return collides
+
+
+    def collidesWith( self, obj, doubleDispatch = False ):
+        if doubleDispatch:
+            collides = self.collidesWithRect( obj )
+        else:
+            collides = obj.collidesWith( self, doubleDispatch=True )
+
+        return collides
+
+
+    def collidesWithRect( self, obj ):
+        if self == obj:
+            collides = False
+        else:
+            collides = self.colRect.colliderect( obj.colRect )
+
+        return collides
+
+
+    # Ask if the given world coordinate position collides with the object's full or collision rectangle.
     def collidesWithPoint( self, pos, useFullRect = False ):
         if useFullRect:
             rect = self.rect
@@ -212,6 +331,7 @@ class Object:
         return collides
 
 
+    # Deprecated. DON'T USE.
     # Does the object's foot position collide with the collision colour (default is a colour that is not the background colour).
     def collidesWithColour( self, viewPort, offset = ORIGIN, collisionColour = None ):
         # Calculate the viewport coordinate for the object's top left position
@@ -237,7 +357,6 @@ class Object:
             self.updateCallback( self, camera, offset )
 
         self.updateRect( camera, offset )
-        self.updateCollisionRect()
         self.updateAttachedObjects( camera, offset )
         self.checkLifetime()
 
@@ -276,12 +395,13 @@ class Object:
 
     def draw( self, surface ):
         if self.visible:
-            surface.blit( self.surface, self.rect )
+            surface.blit( self.surface, self.vpRect )
             viewPortCls = viewport.ViewPort
 
             if viewPortCls.debugDraw:
-                viewPortCls.sdrawBox( surface, self.rect, colour=self.colour )
-                viewPortCls.sdrawBox( surface, self.colRect, colour=self.colour )
+                viewPortCls.sdrawBox( surface, self.vpRect, colour=self.colour )
+                viewPortCls.sdrawBox( surface, self.vpColRect, colour=self.colour )
+                surface.blit( self.maskSurface, self.vpRect )
 
             self.drawAttachedObjects( surface )
 
@@ -338,10 +458,12 @@ class ImageObject( Object ):
         Object.__init__( self, pos, **kwArgs )
 
 
-    def updateSurface( self ):
-        width = self.size
-        height = int( ( float( width ) * self.ratio ) + 0.5 )
-        self.surface = pygame.transform.scale( self.image, ( width, height ) )
+    def getSurface( self ):
+        width = self.getWidth()
+        height = self.getHeight()
+        surface = pygame.transform.scale( self.image, ( width, height ) )
+
+        return surface
 
 
     def swapImage( self, image ):
@@ -365,59 +487,100 @@ class ImageObject( Object ):
 
 
 
+class ImageObjectWithColourCollision( ImageObject ):
+    def __init__( self, pos, image, **kwArgs ):
+        ImageObject.__init__( self, pos, image, **kwArgs )
+
+
+    def collidesWith( self, obj, doubleDispatch = False ):
+        collides = self.collidesWithRect( obj )
+
+        if collides:
+            offset = obj.pos - self.pos
+            overlapPoint = self.mask.overlap( obj.mask, offset.asTuple() )
+            collides = ( overlapPoint is not None )
+
+            # numOverlapPixels = self.mask.overlap_area( obj.mask, offset.asTuple() )
+            #  = ( numOverlapPixels > 0 )
+
+        return collides
+
+
+
+
+class ImageObjectWithNoCollision( ImageObject ):
+    def __init__( self, pos, image, **kwArgs ):
+        ImageObject.__init__( self, pos, image, **kwArgs )
+
+
+    def collidesWith( self, obj, doubleDispatch = False ):
+        print "No collision!"
+        return False
+
+
+
+
 class Box( Object ):
     def __init__( self, pos, **kwArgs ):
         Object.__init__( self, pos, **kwArgs )
 
 
-    def updateSurface( self ):
-        Object.updateSurface( self )
+    def getSurface( self ):
+        surface = Object.getSurface( self )
 
-        self.surface = self.surface.convert_alpha()
+        surface = surface.convert_alpha()
         rect = pygame.Rect( 1, 1, self.width - 2, self.height - 2 )
-        self.surface.fill( BLACK_ALPHA, rect )
+        surface.fill( BLACK_ALPHA, rect )
+
+        return surface
 
 
 
 
-class BackGround( ImageObject ):
+class BackGround( ImageObjectWithColourCollision ):
+    def __init__( self, pos, image, **kwArgs ):
+        ImageObjectWithColourCollision.__init__( self, pos, image, **kwArgs )
+
+
+
+
+class Shop( ImageObjectWithColourCollision ):
+    def __init__( self, pos, image, **kwArgs ):
+        ImageObjectWithColourCollision.__init__( self, pos, image, **kwArgs )
+
+
+
+
+class Digspot( ImageObjectWithColourCollision ):
     def __init__( self, pos, image, **kwArgs ):
         ImageObject.__init__( self, pos, image, **kwArgs )
 
 
 
-
-class Shop( ImageObject ):
+class Bush( ImageObjectWithColourCollision ):
     def __init__( self, pos, image, **kwArgs ):
-        ImageObject.__init__( self, pos, image, **kwArgs )
+        ImageObjectWithColourCollision.__init__( self, pos, image, **kwArgs )
 
 
 
 
-class Bush( ImageObject ):
+class Arrow( ImageObjectWithNoCollision ):
     def __init__( self, pos, image, **kwArgs ):
-        ImageObject.__init__( self, pos, image, **kwArgs )
+        ImageObjectWithNoCollision.__init__( self, pos, image, **kwArgs )
 
 
 
 
-class Arrow( ImageObject ):
+class Monster( ImageObjectWithNoCollision ):
     def __init__( self, pos, image, **kwArgs ):
-        ImageObject.__init__( self, pos, image, **kwArgs )
+        ImageObjectWithNoCollision.__init__( self, pos, image, **kwArgs )
 
 
 
 
-class Monster( ImageObject ):
+class Coin( ImageObjectWithNoCollision ):
     def __init__( self, pos, image, **kwArgs ):
-        ImageObject.__init__( self, pos, image, **kwArgs )
-
-
-
-
-class Coin( ImageObject ):
-    def __init__( self, pos, image, **kwArgs ):
-        ImageObject.__init__( self, pos, image, **kwArgs )
+        ImageObjectWithNoCollision.__init__( self, pos, image, **kwArgs )
 
 
 
@@ -431,8 +594,8 @@ class Text( Object ):
         Object.__init__( self, pos, **kwArgs )
 
 
-    def updateSurface( self ):
-        self.surface = self.font.render( self.text, True, self.colour )
+    def getSurface( self ):
+        return self.font.render( self.text, True, self.colour )
 
 
 
@@ -471,7 +634,7 @@ class Score( StaticText ):
 
 
 
-class DynamicObject( ImageObject ):
+class DynamicObject( ImageObjectWithColourCollision ):
     def __init__( self, pos, movementStyle, **kwArgs ):
         self.images = images = {}
         images['left'] = kwArgs.get( 'imageL', None )
@@ -564,15 +727,16 @@ class DynamicObject( ImageObject ):
 
 
 
-class Player( DynamicObject ):
+
+class Sprite( DynamicObject ):
     def __init__( self, pos, movementStyle, **kwArgs ):
         DynamicObject.__init__( self, pos, movementStyle, **kwArgs )
 
 
-    # Override updateCollisionRect() from Object.
-    def updateCollisionRect( self ):
+    # Override getCollisionRect() from Object.
+    def getCollisionRect( self, rect ):
         # Use a smaller collision rectangle that represents the player's feet.
-        self.colRect = colRect = self.rect.copy()
+        colRect = colRect = rect.copy()
         # Collision rect from feet to a quarter height.
         colRect.top = colRect.top + ( ( colRect.height * 3 ) / 4 )
         colRect.height = colRect.height / 4
@@ -580,8 +744,16 @@ class Player( DynamicObject ):
         # colRect.left = colRect.left + ( colRect.width / 4 )
         # colRect.width = colRect.width / 2
 
+        return colRect
 
 
-class Sprite( DynamicObject ):
+    def getCentre( self ):
+        return Point( self.x + int( ( float( self.size ) + 0.5 ) / 2 ), self.y + int( ( float( self.size ) + 0.5 ) / 2 ) )
+
+
+
+
+
+class Player( Sprite ):
     def __init__( self, pos, movementStyle, **kwArgs ):
-        DynamicObject.__init__( self, pos, movementStyle, **kwArgs )
+        Sprite.__init__( self, pos, movementStyle, **kwArgs )
