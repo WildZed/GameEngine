@@ -114,6 +114,10 @@ class Object( object ):
         self.visible = visible
 
 
+    def toggleVisibility( self ):
+        self.visible = not self.visible
+
+
     def getScene( self ):
         return self.scene
 
@@ -259,6 +263,13 @@ class Object( object ):
         return pygame.Rect( offSetPos.x, offSetPos.y, self.width, self.height )
 
 
+    def getRelativeOffset( self, obj ):
+        selfPos = self.getOffSetPos()
+        objPos = obj.getOffSetPos()
+
+        return objPos - selfPos
+
+
     def attachObject( self, obj ):
         self.attachedObjects.append( obj )
         obj.parent = self
@@ -376,7 +387,7 @@ class Object( object ):
         collides = self.collidesWithRect( obj )
 
         if collides:
-            offset = obj.pos - self.pos
+            offset = self.getRelativeOffset( obj )
             overlapPoint = self.mask.overlap( obj.mask, offset.asTuple() )
             collides = ( overlapPoint is not None )
 
@@ -777,9 +788,9 @@ class DynamicObject( ImageObject ):
                 offset = Point( 0, - self.getBounceAmount() )
 
             Object.update( self, camera, offset )
-            self.setVisible( True )
-        else:
-            self.setVisible( False )
+            #self.setVisible( True )
+        #else:
+            #self.setVisible( False )
 
 
 

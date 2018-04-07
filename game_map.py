@@ -163,6 +163,8 @@ class ObjectStore( object ):
                 if testObj.collidesWith( obj ):
                     collides = True
                     break
+                elif testObj.interactsWith( obj ):
+                    break
 
             if collides:
                 break
