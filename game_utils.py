@@ -4,7 +4,7 @@
 import pygame
 
 
-class FontCache:
+class FontCache( object ):
     def __init__( self ):
         self.fonts = {}
 

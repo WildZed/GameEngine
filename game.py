@@ -14,7 +14,7 @@ DEFAULT_FPS = 30 # frames per second to update the screen
 
 
 
-class Game:
+class Game( object ):
     def __init__( self, name, icon, viewPort ):
         # Set up the game state variables.
         self.viewPort = viewPort

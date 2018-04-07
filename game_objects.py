@@ -11,11 +11,21 @@ from game_constants import *
 
 # Constants.
 
+# Generic types of object.
+# Special interactions can be overloaded by testing for the collision item's type.
+class InteractionType( object ):
+    NONE = 0
+    IMPERVIOUS = 1      # Objects that collide with all objects.
+    SOLID = 2           # Objects that collide with other solid objects.
+    OVERLAY = 4         # Objects that don't normally collide with others, but otherwise interact, eg. coin.
+    GHOST = 8           # Only interacts with things sensitive to ghosts.
+    NEUTRINO = 64       # Very rarely interacts. Only with huge tanks of water.
+
 
 
 
 # Example of access dataObj.<attr> and setting dataObj.<attr> = <value>.
-class Data:
+class Data( object ):
     def __init__( self ):
         self.__dict__['_data'] = {}
 
@@ -41,7 +51,7 @@ class Data:
 
 
 # A generic game object.
-class Object:
+class Object( object ):
     # Constants.
     DEFAULT_OBJECT_SIZE = 20
 
@@ -82,9 +92,18 @@ class Object:
         self.mask = None
         # Keep hold of the surface used to create the mask for debugging purposes.
         self.maskSurface = None
+        # The object type and collision mask used to check if objects can collide.
+        self.objectProperties = kwArgs.get( 'objectProperties', InteractionType.SOLID )
+        self.interactionMask = kwArgs.get( 'interactionMask', InteractionType.IMPERVIOUS | InteractionType.SOLID | InteractionType.OVERLAY )
+        self.collisionMask = kwArgs.get( 'collisionMask', InteractionType.IMPERVIOUS | InteractionType.SOLID )
         # Surface created first. Rects are calculated from the surface width and height.
         self.updateSurface()
         self.updateRect()
+
+
+    def delete( self ):
+        if self.scene:
+            self.scene.deleteObject( self )
 
 
     def __repr__( self ):
@@ -104,6 +123,30 @@ class Object:
         self.scene = scene
 
 
+    def setObjectProperties( self, objectProperties ):
+        self.objectProperties = objectProperties
+
+
+    def setInteractionMask( self, interactionMask ):
+        self.interactionMask = interactionMask
+
+
+    def setCollisionMask( self, collisionMask ):
+        self.collisionMask = collisionMask
+
+
+    # Insert the supplied keyword unless set from the constructor.
+    def mergeKwArg( self, key, value, kwArgs ):
+        kwArgs[key] = kwArgs.get( key, value )
+        # print "mergeKwArg %s %s" % ( key, kwArgs[key] )
+
+
+    def mergeNonInteractingKwArgs( self, kwArgs ):
+        self.mergeKwArg( 'objectProperties', InteractionType.OVERLAY, kwArgs )
+        self.mergeKwArg( 'interactionMask', InteractionType.IMPERVIOUS | InteractionType.SOLID, kwArgs )
+        self.mergeKwArg( 'collisionMask', InteractionType.IMPERVIOUS, kwArgs )
+
+
     def moveToScene( self, scene ):
         # Cannot use this to add or delete from scene.
         if scene and self.scene:
@@ -112,6 +155,7 @@ class Object:
 
     def getPos( self ):
         return self.pos
+
 
     def pushPos( self, newPos, adjustedOldPos = None, offsetOldPos = None ):
         if adjustedOldPos:
@@ -298,20 +342,48 @@ class Object:
         return collides
 
 
-    def collidesWith( self, obj, doubleDispatch = False ):
-        if doubleDispatch:
-            collides = self.collidesWithRect( obj )
-        else:
-            collides = obj.collidesWith( self, doubleDispatch=True )
+    def canInteract( self, obj ):
+        return self.objectProperties & obj.interactionMask and self.interactionMask & obj.objectProperties
 
-        return collides
+
+    def canCollide( self, obj ):
+        # if self.objectProperties == InteractionType.IMPERVIOUS or obj.objectProperties == InteractionType.IMPERVIOUS:
+        #     print "self.objectProperties %d" % self.objectProperties
+        #     print "obj.objectProperties %d" % obj.objectProperties
+        #     print "self.collisionMask %d" % self.collisionMask
+        #     print "obj.collisionMask %d" % obj.collisionMask
+        return self.objectProperties & obj.collisionMask and self.collisionMask & obj.objectProperties
+
+
+    def interactsWith( self, obj ):
+        return self.canInteract( obj ) and self.collidesWithColour( obj )
+
+
+    def collidesWith( self, obj ):
+        return self.canCollide( obj ) and self.collidesWithColour( obj )
 
 
     def collidesWithRect( self, obj ):
         if self == obj:
             collides = False
         else:
-            collides = self.colRect.colliderect( obj.colRect )
+            collides = ( 0 != self.colRect.colliderect( obj.colRect ) )
+
+        return collides
+
+
+    def collidesWithColour( self, obj ):
+        collides = self.collidesWithRect( obj )
+
+        if collides:
+            offset = obj.pos - self.pos
+            overlapPoint = self.mask.overlap( obj.mask, offset.asTuple() )
+            collides = ( overlapPoint is not None )
+
+            # print "collidesWithRect %s" % collides
+
+            # numOverlapPixels = self.mask.overlap_area( obj.mask, offset.asTuple() )
+            #  = ( numOverlapPixels > 0 )
 
         return collides
 
@@ -333,7 +405,7 @@ class Object:
 
     # Deprecated. DON'T USE.
     # Does the object's foot position collide with the collision colour (default is a colour that is not the background colour).
-    def collidesWithColour( self, viewPort, offset = ORIGIN, collisionColour = None ):
+    def collidesWithViewPortColour( self, viewPort, offset = ORIGIN, collisionColour = None ):
         # Calculate the viewport coordinate for the object's top left position
         # plus the supplied offset. The offset can be used to work out if
         # a future position will collide.
@@ -349,7 +421,7 @@ class Object:
 
 
     def asRectangle( self ):
-        return Rectange( Point( self.pos.x, self.pos.y ), Point( self.pos.x + self.width, self.pos.y + self.height ) )
+        return Rectangle( Point( self.pos.x, self.pos.y ), Point( self.pos.x + self.width, self.pos.y + self.height ) )
 
 
     def update( self, camera = ORIGIN, offset = ORIGIN ):
@@ -449,6 +521,7 @@ class Object:
 
 
 
+# Default Image object provides colour collision.
 class ImageObject( Object ):
     def __init__( self, pos, image, **kwArgs ):
         self.image = image
@@ -487,39 +560,6 @@ class ImageObject( Object ):
 
 
 
-class ImageObjectWithColourCollision( ImageObject ):
-    def __init__( self, pos, image, **kwArgs ):
-        ImageObject.__init__( self, pos, image, **kwArgs )
-
-
-    def collidesWith( self, obj, doubleDispatch = False ):
-        collides = self.collidesWithRect( obj )
-
-        if collides:
-            offset = obj.pos - self.pos
-            overlapPoint = self.mask.overlap( obj.mask, offset.asTuple() )
-            collides = ( overlapPoint is not None )
-
-            # numOverlapPixels = self.mask.overlap_area( obj.mask, offset.asTuple() )
-            #  = ( numOverlapPixels > 0 )
-
-        return collides
-
-
-
-
-class ImageObjectWithNoCollision( ImageObject ):
-    def __init__( self, pos, image, **kwArgs ):
-        ImageObject.__init__( self, pos, image, **kwArgs )
-
-
-    def collidesWith( self, obj, doubleDispatch = False ):
-        print "No collision!"
-        return False
-
-
-
-
 class Box( Object ):
     def __init__( self, pos, **kwArgs ):
         Object.__init__( self, pos, **kwArgs )
@@ -537,50 +577,58 @@ class Box( Object ):
 
 
 
-class BackGround( ImageObjectWithColourCollision ):
+class BackGround( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
-        ImageObjectWithColourCollision.__init__( self, pos, image, **kwArgs )
+        self.mergeKwArg( 'objectProperties', InteractionType.IMPERVIOUS, kwArgs )
+        ImageObject.__init__( self, pos, image, **kwArgs )
+        # print "self.objectProperties %d" % self.objectProperties
 
 
 
 
-class Shop( ImageObjectWithColourCollision ):
-    def __init__( self, pos, image, **kwArgs ):
-        ImageObjectWithColourCollision.__init__( self, pos, image, **kwArgs )
-
-
-
-
-class Digspot( ImageObjectWithColourCollision ):
+class Shop( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
         ImageObject.__init__( self, pos, image, **kwArgs )
 
 
 
-class Bush( ImageObjectWithColourCollision ):
+
+class Digspot( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
-        ImageObjectWithColourCollision.__init__( self, pos, image, **kwArgs )
+        self.mergeNonInteractingKwArgs( kwArgs )
+        ImageObject.__init__( self, pos, image, **kwArgs )
+
+        self.digCount = 0
 
 
 
-
-class Arrow( ImageObjectWithNoCollision ):
+class Bush( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
-        ImageObjectWithNoCollision.__init__( self, pos, image, **kwArgs )
+        ImageObject.__init__( self, pos, image, **kwArgs )
 
 
 
 
-class Monster( ImageObjectWithNoCollision ):
+class Arrow( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
-        ImageObjectWithNoCollision.__init__( self, pos, image, **kwArgs )
+        self.mergeNonInteractingKwArgs( kwArgs )
+        ImageObject.__init__( self, pos, image, **kwArgs )
 
 
 
 
-class Coin( ImageObjectWithNoCollision ):
+class Monster( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
-        ImageObjectWithNoCollision.__init__( self, pos, image, **kwArgs )
+        self.mergeNonInteractingKwArgs( kwArgs )
+        ImageObject.__init__( self, pos, image, **kwArgs )
+
+
+
+
+class Coin( ImageObject ):
+    def __init__( self, pos, image, **kwArgs ):
+        self.mergeNonInteractingKwArgs( kwArgs )
+        ImageObject.__init__( self, pos, image, **kwArgs )
 
 
 
@@ -634,7 +682,7 @@ class Score( StaticText ):
 
 
 
-class DynamicObject( ImageObjectWithColourCollision ):
+class DynamicObject( ImageObject ):
     def __init__( self, pos, movementStyle, **kwArgs ):
         self.images = images = {}
         images['left'] = kwArgs.get( 'imageL', None )

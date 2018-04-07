@@ -6,7 +6,7 @@ import copy
 
 
 
-class Point:
+class Point( object ):
     def __init__( self, posOrX = None, y = None ):
         if y is not None:
             self.x = posOrX
@@ -96,7 +96,7 @@ class UnitPoint( Point ):
 
 
 
-class Rectangle:
+class Rectangle( object ):
     def __init__( self, rectOrll = None, ur = None ):
         if rectOrll is None:
             self.ll = Point( 0, 0 )

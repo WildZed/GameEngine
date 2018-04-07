@@ -11,7 +11,7 @@ DEFAULT_BACKGROUND_COLOUR = (211, 211, 211)
 
 
 
-class ImageStore:
+class ImageStore( object ):
     def __init__( self ):
         pass
 
@@ -51,7 +51,7 @@ class ImageStore:
 
 
 
-class ObjectStore:
+class ObjectStore( object ):
     def __init__( self, parentMap ):
         self.parentMap = parentMap
         self.objectLists = {}
@@ -232,7 +232,7 @@ class Scene( ObjectStore ):
 
 
 
-class Map:
+class Map( object ):
     def __init__( self ):
         self.scenes = {}
         self.sprites = ObjectStore( self )

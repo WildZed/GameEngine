@@ -23,7 +23,7 @@ DIRECTION_LIST = ( 'left', 'right', 'up', 'down' )
 
 
 
-class Directions:
+class Directions( object ):
     DIRECTIONS = {
         'left'  : 'horizontal',
         'right' : 'horizontal',
@@ -111,7 +111,7 @@ class Directions:
 
 
 
-class Boundary:
+class Boundary( object ):
     def __init__( self ):
         self.resetBlocked()
 
@@ -213,7 +213,7 @@ class CollisionBoundary( Boundary ):
 
 
 # Interface of all movement Styles.
-class MovementStyle:
+class MovementStyle( object ):
     def __init__( self ):
         self.moveObject = None
 

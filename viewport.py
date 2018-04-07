@@ -17,7 +17,7 @@ CAMERASLACK = 90
 
 
 
-class ViewPort:
+class ViewPort( object ):
     # Class variables.
     debugDraw = False
 
@@ -84,6 +84,10 @@ class ViewPort:
             camera.y = pos.y + CAMERASLACK - self.halfHeight
         elif ( pos.y - ( camera.y + self.halfHeight ) ) > CAMERASLACK:
             camera.y = pos.y - CAMERASLACK - self.halfHeight
+
+
+    def getWorldCoordinate( self, pos ):
+        return pos + self.camera
 
 
     def positionNear( self, pos, oldPos, distance ):
@@ -158,9 +162,10 @@ class ViewPort:
             return True
 
         # Use the object's bounding rectangle to filter the position, if provided.
-        collides = ( obj is None or obj.collidesWithPoint( pos, True ) )
+        # Convert point to world (object) coordinates.
+        collides = ( obj is None or obj.collidesWithPoint( self.getWorldCoordinate( pos ), True ) )
 
-        # print "collisionAtPoint %s %s %s" % ( pos, obj.asRect(), collides )
+        # print "collisionAtPoint pos %s camera %s wpos %s rect %s collides %s" % ( pos, self.camera, self.getWorldCoordinate( pos ), obj.asRectangle(), collides )
 
         if collides:
             if collisionColour is None:
