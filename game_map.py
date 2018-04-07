@@ -4,6 +4,7 @@
 import pygame, copy
 from pygame.locals import *
 from geometry import *
+from game_constants import *
 
 
 # Temporary constant.
@@ -162,8 +163,10 @@ class ObjectStore( object ):
             for obj in objList:
                 if testObj.collidesWith( obj ):
                     collides = True
+                    self.parentMap.createCollisionEvent( testObj, obj )
                     break
                 elif testObj.interactsWith( obj ):
+                    self.parentMap.createInteractionEvent( testObj, obj )
                     break
 
             if collides:
@@ -361,4 +364,12 @@ class Map( object ):
     def getCollisions( self, testObj ):
         collisions = self.sprites.getCollisions( testObj )
         collisions.extend( self.players.getCollisions( testObj ) )
+
+
+    def createInteractionEvent( self, obj1, obj2 ):
+        pygame.event.post( pygame.event.Event( INTERACTION_EVENT, obj1=obj1, obj2=obj2 ) )
+
+
+    def createCollisionEvent( self, obj1, obj2 ):
+        pygame.event.post( pygame.event.Event( COLLISION_EVENT, obj1=obj1, obj2=obj2 ) )
 

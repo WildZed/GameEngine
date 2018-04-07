@@ -78,6 +78,10 @@ class Point( object ):
         return ( self.x, self.y )
 
 
+    def manhattanDistance( self, point ):
+        return abs( self.x - point.x ) + abs( self.y - point.y )
+
+
 
 
 class UnitPoint( Point ):
