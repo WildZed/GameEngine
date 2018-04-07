@@ -586,6 +586,15 @@ class BackGround( ImageObject ):
 
 
 
+class Fog( ImageObject ):
+    def __init__( self, pos, image, **kwArgs ):
+        self.mergeKwArg( 'objectProperties', InteractionType.NONE, kwArgs )
+        self.mergeKwArg( 'collisionMask', InteractionType.NONE, kwArgs )
+        ImageObject.__init__( self, pos, image, **kwArgs )
+
+
+
+
 class Shop( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
         ImageObject.__init__( self, pos, image, **kwArgs )
