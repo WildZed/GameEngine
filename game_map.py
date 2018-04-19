@@ -12,6 +12,24 @@ DEFAULT_BACKGROUND_COLOUR = (211, 211, 211)
 
 
 
+
+def createInteractionEvent( obj1, obj2 ):
+    # print "Creating interaction event %s <-> %s" % ( obj1, obj2 )
+    return pygame.event.Event( INTERACTION_EVENT, obj1=obj1, obj2=obj2 )
+
+
+def createCollisionEvent( obj1, obj2 ):
+    # print "Creating collision event %s <-> %s" % ( obj1, obj2 )
+    return pygame.event.Event( COLLISION_EVENT, obj1=obj1, obj2=obj2 )
+
+
+def createClickCollisionEvent( obj, pos ):
+    # print "Creating click collision event %s <-> %s" % ( obj, pos )
+    return pygame.event.Event( CLICK_COLLISION_EVENT, obj=obj, pos=pos )
+
+
+
+
 class ImageStore( object ):
     def __init__( self ):
         pass
@@ -75,8 +93,8 @@ class ObjectStore( object ):
         obj.setScene( scene )
 
 
-
-    def deleteObject( self, obj ):
+    # Removes the object from the ObjectStore but does not delete it.
+    def removeObject( self, obj ):
         objType = obj.__class__.__name__
         objLists = self.objectLists
 
@@ -102,14 +120,14 @@ class ObjectStore( object ):
             return []
 
 
-    def update( self, camera, objTypes = None ):
+    def update( self, camera, updateOrder = None ):
         objLists = self.objectLists
 
-        if not objTypes:
+        if not updateOrder:
             # Non-deterministic order.
-            objTypes = objLists.keys()
+            updateOrder = objLists.keys()
 
-        for objType in objTypes:
+        for objType in updateOrder:
             if not objLists.has_key( objType ):
                 continue
                 # raise  AttributeError( "No objects of type '%s' in map!" % objType )
@@ -120,21 +138,54 @@ class ObjectStore( object ):
                 obj.update( camera )
 
 
-    def move( self ):
+    # def move( self ):
+    #     objLists = self.objectLists
+    #     objTypes = objLists.keys()
+    #
+    #     for objType in objTypes:
+    #         objList = objLists[objType]
+    #
+    #         for obj in objList:
+    #             if hasattr( obj, 'move' ):
+    #                 obj.move()
+
+
+    def sortObjLists( self, reverse=False ):
         objLists = self.objectLists
-        objTypes = objLists.keys()
 
-        for objType in objTypes:
+        for objType in objLists.keys():
             objList = objLists[objType]
-
-            for obj in objList:
-                if hasattr( obj, 'move' ):
-                    obj.move()
+            objList.sort( key=lambda obj : obj.colRect.bottom, reverse=reverse )
 
 
-    def draw( self, viewPort, objTypes = None, debugDraw = False ):
+    def getDrawOrderObjects( self ):
+        drawList = []
+        objLists = self.objectLists
+
+        for objType in objLists.keys():
+            objList = objLists[objType]
+            drawList.extend( objList )
+
+        drawList.sort( key=lambda obj : obj.colRect.bottom ) #, reverse=reverse )
+
+        return drawList
+
+
+    def draw( self, viewPort, debugDraw = False ):
+        drawList = self.getDrawOrderObjects()
+
+        for obj in drawList:
+            obj.draw( viewPort.displaySurface )
+
+
+    def drawByObjectTypeOrder( self, viewPort, objTypes = None, debugDraw = False ):
         objLists = self.objectLists
         currentScene = self.parentMap.scene
+
+        self.sortObjLists()
+
+        if not objTypes:
+            objTypes = self.parentMap.drawOrder
 
         if not objTypes:
             # Non-deterministic order.
@@ -153,7 +204,7 @@ class ObjectStore( object ):
 
 
     def collides( self, testObj ):
-        collides = False
+        event = None
         objLists = self.objectLists
         objTypes = objLists.keys()
 
@@ -162,20 +213,37 @@ class ObjectStore( object ):
 
             for obj in objList:
                 if testObj.collidesWith( obj ):
-                    collides = True
-                    self.parentMap.createCollisionEvent( testObj, obj )
+                    event = createCollisionEvent( testObj, obj )
                     break
                 elif testObj.interactsWith( obj ):
-                    self.parentMap.createInteractionEvent( testObj, obj )
-                    break
+                    event = createInteractionEvent( testObj, obj )
 
-            if collides:
+            if event and event.type == COLLISION_EVENT:
                 break
 
-        return collides
+        return event
 
 
-    def getCollisions( self, testObj ):
+    def collidesWithPoint( self, pos ):
+        event = None
+        objLists = self.objectLists
+        objTypes = objLists.keys()
+
+        for objType in objTypes:
+            objList = objLists[objType]
+
+            for obj in objList:
+                if obj.collidesWithPoint( pos ):
+                    event = createClickCollisionEvent( obj, pos )
+                    break
+
+            if event:
+                break
+
+        return event
+
+
+    def getAllCollisions( self, testObj ):
         collisions = []
         objLists = self.objectLists
         objTypes = objLists.keys()
@@ -215,24 +283,43 @@ class Scene( ObjectStore ):
         ObjectStore.addObject( self, obj, scene=self )
 
 
+    def isScene( self, scene ):
+        return scene.__class__ == self.__class__
+
+
     # Called from Object only.
     def moveObjectToScene( self, obj, scene ):
-        self.deleteObject( obj )
+        if not self.isScene( scene ):
+            scene = self.parentMap.getScene( scene )
+
+        self.removeObject( obj )
         scene.addObject( obj )
 
 
-    def collides( self, testObj ):
-        collides = self.parentMap.collides( testObj )
-
-        if not collides:
-            collides = ObjectStore.collides( self, testObj )
-
-        return collides
-
-
-    def getCollisions( self, testObj ):
-        collisions = self.parentMap.getCollisions( testObj )
-        collisions.extend( ObjectStore.getCollisions( self, testObj ) )
+    # def collides( self, testObj ):
+    #     event = self.parentMap.collides( testObj )
+    #
+    #     if not event or event.type != COLLISION_EVENT:
+    #         newEvent = ObjectStore.collides( self, testObj )
+    #
+    #         if not event or ( newEvent and newEvent.type == COLLISION_EVENT ):
+    #             event = newEvent
+    #
+    #     return event
+    #
+    #
+    # def collidesWithPoint( self, pos ):
+    #     event = self.parentMap.collidesWithPoint( pos )
+    #
+    #     if not event:
+    #         event = ObjectStore.collidesWithPoint( self, pos )
+    #
+    #     return event
+    #
+    #
+    # def getAllCollisions( self, testObj ):
+    #     collisions = self.parentMap.getAllCollisions( testObj )
+    #     collisions.extend( ObjectStore.getAllCollisions( self, testObj ) )
 
 
 
@@ -240,15 +327,25 @@ class Scene( ObjectStore ):
 class Map( object ):
     def __init__( self ):
         self.scenes = {}
-        self.sprites = ObjectStore( self )
-        self.players = ObjectStore( self )
+        # self.sprites = ObjectStore( self )
+        # self.players = ObjectStore( self )
+        self.movingObjects = []
         self.overlays = ObjectStore( self )
         self.scene = None
         self.images = None
+        self.drawOrder = None
 
 
     def setImageStore( self, images ):
         self.images = images
+
+
+    def getDrawOrder( self, drawOrder ):
+        return self.drawOrder
+
+
+    def setDrawOrder( self, drawOrder ):
+        self.drawOrder = drawOrder
 
 
     def createScene( self, name, backGroundColour ):
@@ -263,85 +360,114 @@ class Map( object ):
             self.scene = Scene( self, 'default', DEFAULT_BACKGROUND_COLOUR )
 
 
-    def getScene( self, name ):
-        return self.scenes[name]
+    def getScene( self, name = None ):
+        if name:
+            scene = self.scenes[name]
+        else:
+            scene = self.scene
+
+        return scene
 
 
     def changeScene( self, name ):
-        self.scene = self.getScene( name )
+        newScene = self.getScene( name )
+
+        if newScene == self.scene:
+            return False
+
+        self.scene = newScene
+
+        return True
 
 
     def addObject( self, obj ):
         self.ensureScene()
         self.scene.addObject( obj )
 
-
-    def objectsOfType( self, objType ):
-        self.ensureScene()
-
-        return self.scene.objectsOfType( objType )
-
-
-    def deleteAllObjectsOfType( self, objType ):
-        self.ensureScene()
-        self.scene.deleteAllObjectsOfType( objType )
-        self.sprites.deleteAllObjectsOfType( objType )
-        self.players.deleteAllObjectsOfType( objType )
-        self.overlays.deleteAllObjectsOfType( objType )
-
-
-    def addSprite( self, obj ):
-        self.ensureScene()
-        self.sprites.addObject( obj, scene=self.scene )
-
-
-    def addPlayer( self, obj ):
-        self.players.addObject( obj, scene=self.scene )
-
-
-    def movePlayerToScene( self, player, name ):
-        scene = self.getScene( name )
-        player.setScene( scene )
-
-
-    def moveSprityeToScene( self, sprite, name ):
-        scene = self.getScene( name )
-        sprite.setScene( scene )
+        if hasattr( obj, 'move' ):
+            self.movingObjects.append( obj )
 
 
     def addOverlay( self, obj ):
         self.overlays.addObject( obj )
 
 
-    def update( self, camera, objTypes = None ):
+    def objectsOfType( self, objType ):
         self.ensureScene()
-        self.scene.update( camera, objTypes )
+        objectsOfType = []
+        objectsOfType.extend( self.scene.objectsOfType( objType ) )
+        objectsOfType.extend( self.overlays.objectsOfType( objType ) )
+
+        return objectsOfType
+
+
+    def deleteAllObjectsOfType( self, objType ):
+        self.ensureScene()
+        self.scene.deleteAllObjectsOfType( objType )
+        # self.sprites.deleteAllObjectsOfType( objType )
+        # self.players.deleteAllObjectsOfType( objType )
+        self.overlays.deleteAllObjectsOfType( objType )
+        # Need to ensure that objects are removed from the movingObjects list.
+        # Although del should do it.
+
+
+    # def addSprite( self, obj ):
+    #     self.ensureScene()
+    #     self.sprites.addObject( obj, scene=self.scene )
+
+
+    # def addPlayer( self, obj ):
+    #     self.players.addObject( obj, scene=self.scene )
+
+
+    # def movePlayerToScene( self, player, name ):
+    #     scene = self.getScene( name )
+    #     player.setScene( scene )
+
+
+    # def moveSpriteToScene( self, sprite, name ):
+    #     scene = self.getScene( name )
+    #     sprite.setScene( scene )
+
+
+    def update( self, camera, updateOrder = None ):
+        self.ensureScene()
+        self.scene.update( camera, updateOrder=updateOrder )
         # Always update the sprites after the scene.
-        self.sprites.update( camera )
+        # self.sprites.update( camera )
         # self.players.update( camera, objTypes )
-        self.overlays.update( camera, objTypes )
+        self.overlays.update( camera, updateOrder=updateOrder )
 
 
     def move( self ):
-        self.sprites.move()
+        # self.players.move()
+        # self.sprites.move()
+        for moveObj in self.movingObjects:
+            moveObj.move()
+
 
 
     def draw( self, viewPort, objTypes = None ):
         self.ensureScene()
         self.scene.draw( viewPort, objTypes )
-        self.sprites.draw( viewPort, objTypes )
-        self.players.draw( viewPort, objTypes )
+        # self.sprites.draw( viewPort, objTypes )
+        # self.players.draw( viewPort, objTypes )
         self.overlays.draw( viewPort, objTypes )
 
 
     def __getattr__( self, key ):
+        self.ensureScene()
+
         if key == 'player':
-            return self.__dict__['players'].objectLists['Player'][0]
+            # return self.__dict__['players'].objectLists['Player'][0]
+            # Need to check in all scenes for the player, or the movingObjects list.
+            return self.__dict__['scene'].objectLists['Player'][0]
+        elif key == 'sprites':
+            # Currently just return sprites in the current scene, but it could gather from all scenes.
+            return self.__dict__['scene'].objectLists['Sprite']
         elif key == 'score':
             return self.__dict__['overlays'].objectLists['Score'][0]
         elif key == 'backGroundColour':
-            self.ensureScene()
-
             return self.__dict__['scene'].backGroundColour
 
         if not self.__dict__.has_key( key ) :
@@ -352,24 +478,50 @@ class Map( object ):
         return val
 
 
-    def collides( self, testObj ):
-        collides = self.sprites.collides( testObj )
-
-        if not collides:
-            collides = self.players.collides( testObj )
-
-        return collides
-
-
-    def getCollisions( self, testObj ):
-        collisions = self.sprites.getCollisions( testObj )
-        collisions.extend( self.players.getCollisions( testObj ) )
-
-
-    def createInteractionEvent( self, obj1, obj2 ):
-        pygame.event.post( pygame.event.Event( INTERACTION_EVENT, obj1=obj1, obj2=obj2 ) )
-
-
-    def createCollisionEvent( self, obj1, obj2 ):
-        pygame.event.post( pygame.event.Event( COLLISION_EVENT, obj1=obj1, obj2=obj2 ) )
-
+    # def collides( self, testObj ):
+    #     # May need to test players first.
+    #     # May need to check sprites are in the current scene.
+    #     # event = self.sprites.collides( testObj )
+    #     #
+    #     # if not event or event.type != COLLISION_EVENT:
+    #     #     newEvent = self.players.collides( testObj )
+    #     #
+    #     #     if not event or ( newEvent and newEvent.type == COLLISION_EVENT ):
+    #     #         event = newEvent
+    #     event = None
+    #
+    #     for moveObj in self.movingObjects:
+    #         if testObj.collidesWith( obj ):
+    #             event = self.createCollisionEvent( testObj, obj )
+    #             break
+    #         elif testObj.interactsWith( obj ):
+    #             event = self.createInteractionEvent( testObj, obj )
+    #
+    #     return event
+    #
+    #
+    # def collidesWithPoint( self, pos ):
+    #     # event = self.sprites.collidesWithPoint( pos )
+    #     #
+    #     # if not event:
+    #     #     event = self.players.collidesWithPoint( pos )
+    #     event = None
+    #
+    #     for moveObj in self.movingObjects:
+    #         if obj.collidesWithPoint( pos ):
+    #             event = self.createClickCollisionEvent( obj, pos )
+    #             break
+    #
+    #     return event
+    #
+    #
+    # def getAllCollisions( self, testObj ):
+    #     # collisions = self.sprites.getAllCollisions( testObj )
+    #     # collisions.extend( self.players.getAllCollisions( testObj ) )
+    #     collisions = []
+    #
+    #     for moveObj in self.movingObjects:
+    #         if testObj.collidesWith( obj ):
+    #             collisions.append( obj )
+    #
+    #     return collisions

@@ -57,6 +57,7 @@ class ViewPort( object ):
         self.backGroundColour = DEFAULT_BACKGROUND_COLOUR
         # Camera is the top left of where the camera view is.
         self.camera = Point()
+        self.cameraMovementStyle = None
 
         pygame.init()
 
@@ -84,6 +85,25 @@ class ViewPort( object ):
             camera.y = pos.y + CAMERASLACK - self.halfHeight
         elif ( pos.y - ( camera.y + self.halfHeight ) ) > CAMERASLACK:
             camera.y = pos.y - CAMERASLACK - self.halfHeight
+
+
+    def setCameraMovementStyle( self, cameraMovementStyle ):
+        self.cameraMovementStyle = cameraMovementStyle
+
+
+    def setCameraMovement( self, **kwArgs ):
+        if self.cameraMovementStyle:
+            self.cameraMovementStyle.setMovement( **kwArgs )
+
+
+    def stopCameraMovement( self, **kwArgs ):
+        if self.cameraMovementStyle:
+            self.cameraMovementStyle.stopMovement( **kwArgs )
+
+
+    def moveCamera( self ):
+        if self.cameraMovementStyle:
+            self.camera = self.cameraMovementStyle.move( self.camera )
 
 
     def getWorldCoordinate( self, pos ):
@@ -211,6 +231,11 @@ class ViewPort( object ):
             # print "collisionAtPoint %s col %s bgcol %s" % ( collides, colour, self.backGroundColour )
 
         return collides
+
+
+    def postEvent( self, event ):
+        if event:
+            pygame.event.post( event )
 
 
     def update( self ):

@@ -1,10 +1,10 @@
 # Monkey-Rabbit Games
 # Game Dynamics
 
-import copy
-import random
+import copy, random, pygame
 from pygame.locals import *
 from geometry import *
+from game_constants import *
 
 
 # Constants.
@@ -114,6 +114,7 @@ class Directions( object ):
 class Boundary( object ):
     def __init__( self ):
         self.resetBlocked()
+        self.resetEvent()
 
 
     def resetBlocked( self ):
@@ -137,6 +138,23 @@ class Boundary( object ):
         self.blockedVertically = val
 
 
+    def resetEvent( self ):
+        self.event = None
+
+
+    def popEvent( self ):
+        event = self.event
+        self.event = None
+
+        return event
+
+
+    # Set the first interaction or collision event to occur.
+    def setEvent( self, event ):
+        if not self.event:
+            self.event = event
+
+
     def getBoundedPosition( self, newPos ):
         return newPos
 
@@ -146,6 +164,7 @@ class Boundary( object ):
 # Bound positions by rectangular area.
 class RectangleBoundary( Boundary ):
     def __init__( self, rect ):
+        Boundary.__init__( self )
         self.rect = rect
 
 
@@ -155,11 +174,10 @@ class RectangleBoundary( Boundary ):
 
 
 
-# Bound object positions by collision with colour different from the viewport background colour.
-# This needs some work because it can't cope with positions outside the viewport.
+# Bound object positions by collision with non-transparent part of other objects.
 class CollisionBoundary( Boundary ):
-    def __init__( self, viewPort, **kwArgs ):
-        self.viewPort = viewPort
+    def __init__( self, **kwArgs ):
+        Boundary.__init__( self )
         self.collisionPointOffset = kwArgs.get( 'collisionPointOffset', None )
         self.resetBlocked()
 
@@ -168,40 +186,44 @@ class CollisionBoundary( Boundary ):
         # Temporarily move to new position to check for collision.
         moveObject.pushPos( newPos )
         moveObject.updateRect()
-        collides = moveObject.collidesWithScene()
+        event = moveObject.collidesWithScene()
+        self.setEvent( event )
         moveObject.popPos()
         moveObject.updateRect()
 
-        return collides
+        return event
 
 
     # Implement the boundaries by collision.
     def getBoundedPosition( self, moveObject, newPos ):
         # Trigger collision events here? Or store on object?
         self.resetBlocked()
-        collides = self.collides( moveObject, newPos )
+        event = self.collides( moveObject, newPos )
 
-        if collides:
+        if event and event.type == COLLISION_EVENT:
             # Now check offset x and y separately.
             curPos = moveObject.getPos()
             origNewPos = newPos
             offsetPos = newPos - curPos
             self.setBlockedVertically()
             newPos = curPos + Point( offsetPos.x, 0 )
-            collides = self.collides( moveObject, newPos )
+            event = self.collides( moveObject, newPos )
 
-            if collides:
+            if event and event.type == COLLISION_EVENT:
                 self.setBlockedHorizontally()
                 newPos = curPos + Point( 0, offsetPos.y )
-                collides = self.collides( moveObject, newPos )
+                event = self.collides( moveObject, newPos )
 
-                if collides:
-                    collides = self.collides( moveObject, curPos )
+                if event and event.type == COLLISION_EVENT:
+                    event = self.collides( moveObject, curPos )
 
-                    if collides:
+                    if event and event.type == COLLISION_EVENT:
                         # Accept newPos if current pos is already colliding.
                         # nudge = UnitPoint( offsetPos )
-                        newPos = curPos # + nudge
+                        # print "moveObject %s collides in curPos with %s" % ( moveObject.name, event.obj2.name )
+                        # import game
+                        # game.Game.currentGame.togglePaused()
+                        newPos = origNewPos
                     else:
                         newPos = curPos
                 else:
@@ -239,6 +261,8 @@ class MovementStyle( object ):
 
 class GeneralMovementStyle( MovementStyle ):
     def __init__( self, moveRate = DEFAULT_MOVERATE, bounceRate = 0, bounceHeight = 0, boundaryStyle = None ):
+        MovementStyle.__init__( self )
+
         self.moveBounds = None
         self.moveRate = moveRate
         self.bounceRate = bounceRate
@@ -292,6 +316,18 @@ class GeneralMovementStyle( MovementStyle ):
         return newPos
 
 
+    def postEvent( self, event ):
+        if event:
+            # print "Posting event " + `event`
+            pygame.event.post( event )
+
+
+    def sendEvent( self ):
+        if self.boundaryStyle:
+            event = self.boundaryStyle.popEvent()
+            self.postEvent( event )
+
+
     # Get the new position based on the movement style.
     def move( self, pos ):
         newPos = Point( pos )
@@ -321,6 +357,7 @@ class GeneralMovementStyle( MovementStyle ):
 
             if newPos != pos:
                 newPos = self.getBoundedPosition( newPos )
+                self.sendEvent()
 
         return newPos
 
@@ -331,6 +368,7 @@ class GeneralMovementStyle( MovementStyle ):
 class KeyMovementStyle( GeneralMovementStyle ):
     def __init__( self, **kwArgs ):
         GeneralMovementStyle.__init__( self, **kwArgs )
+
         self.dirToKeysMap = DEFAULT_KEYSMAP
         self.allDirsToKeysMap = copy.copy( DEFAULT_KEYSMAP )
         self.createKeyToDirMap()
@@ -352,7 +390,7 @@ class KeyMovementStyle( GeneralMovementStyle ):
         allDirsToKeysMap['all'] = allDirsToKeysMap['horizontal'] + allDirsToKeysMap['vertical']
 
 
-    def setMovement( self, key ):
+    def setMovement( self, key = None ):
         if key in self.allDirsToKeysMap['all']:
             direction = self.keyToDirMap[key]
             GeneralMovementStyle.setMovement( self, direction )
@@ -383,7 +421,7 @@ class RandomWalkMovementStyle( GeneralMovementStyle ):
                 self.setMovement( direction )
             else:
                 self.stopMovement()
-        # Continue in the current direction.
+        # Else continue in the current direction.
 
 
 

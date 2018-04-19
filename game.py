@@ -2,6 +2,7 @@
 # Game Engine
 
 import sys, pygame
+import game_map
 from pygame.locals import *
 from geometry import *
 from game_utils import fontCache
@@ -15,15 +16,19 @@ DEFAULT_FPS = 30 # frames per second to update the screen
 
 
 class Game( object ):
+    currentGame = None
+
     def __init__( self, name, icon, viewPort ):
         # Set up the game state variables.
+
+        # Store the current game for debugging purposes.
+        # Only one instance supported.
+        Game.currentGame = self
+
         self.viewPort = viewPort
         self.clickDragLimit = 10
-        self.clickPos = None
-        self.dragPos = None
         self.fpsClock = pygame.time.Clock()
-        self.drawOrder = None
-        self.cameraUpdates = None
+        self.updateOrder = None
 
         pygame.display.set_caption( name )
         pygame.display.set_icon( pygame.image.load( icon ) )
@@ -33,6 +38,17 @@ class Game( object ):
 
     def init( self ):
         self.running = True
+        self.paused = False
+        self.clickPos = None
+        self.dragPos = None
+        self.gameMap = game_map.Map()
+
+        self.initMap()
+
+
+    # Initialise the contents of the map
+    def initMap( self ):
+        pass
 
 
     def reset( self ):
@@ -44,22 +60,32 @@ class Game( object ):
         sys.exit()
 
 
+    def togglePaused( self ):
+        self.paused = not self.paused
+
+
+    def setGameMap( self, gameMap ):
+        self.gameMap = gameMap
+
+
+    # Control drawing order.
     def setDrawOrder( self, *args ):
-        self.drawOrder = args
+        self.gameMap.setDrawOrder( args )
 
 
-    def setCameraUpdates( self, *cameraUpdates ):
-        self.cameraUpdates = cameraUpdates
-
-
-    def addCameraUpdates( self, *cameraUpdates ):
-        self.cameraUpdates.extend( cameraUpdates )
+    # Control update order. This may not matter but if it does this will control it.
+    def setUpdateOrder( self, *args ):
+        self.updateOrder = args
 
 
     def addDebugText( self, text, pos, colour ):
         self.gameMap.addObject( DebugText( fontCache['basic'], text, pos, colour ) )
         # DebugText( '%s' % (pos), ( pos.x + 80, pos.y + 40 ), RED )
         # DebugText( '%s' % (rect), ( pos.x + 120, pos.y + 80 ), RED )
+
+
+    def postEvent( self, event ):
+        pygame.event.post( event )
 
 
     def processEvents( self ):
@@ -82,15 +108,25 @@ class Game( object ):
                 import viewport
 
                 viewport.ViewPort.toggleDebugDraw()
+            elif K_PAUSE == event.key:
+                self.togglePaused()
         elif MOUSEBUTTONDOWN == event.type:
             # Remember position.
             self.clickPos = Point( event.pos )
         elif MOUSEBUTTONUP == event.type:
             # If clickPos nearby event.pos.
             dragPos = Point( event.pos )
+            self.dragPos = None
 
-            if self.viewPort.positionNear( dragPos, self.clickPos, self.clickDragLimit ):
-                self.dragPos = None
+            if self.clickPos and self.viewPort.positionNear( dragPos, self.clickPos, self.clickDragLimit ):
+                viewPort = self.viewPort
+                gameMap = self.gameMap
+                scene = gameMap.getScene()
+
+                if scene:
+                    clickPos = viewPort.getWorldCoordinate( self.clickPos )
+                    event = scene.collidesWithPoint( clickPos )
+                    viewPort.postEvent( event )
             else:
                 self.dragPos = dragPos
 
@@ -107,7 +143,7 @@ class Game( object ):
         gameMap = self.gameMap
 
         # Update the objects offset by the camera.
-        gameMap.update( viewPort.camera, self.cameraUpdates )
+        gameMap.update( viewPort.camera, updateOrder=self.updateOrder )
 
 
     # Update the game state, map and player.
@@ -124,7 +160,7 @@ class Game( object ):
         viewPort.drawBackGround( gameMap.backGroundColour )
 
         # Draw all the map objects.
-        gameMap.draw( viewPort, self.drawOrder )
+        gameMap.draw( viewPort )
 
         viewPort.update()
 
@@ -132,7 +168,12 @@ class Game( object ):
     def run( self ):
         # Main game loop.
         while self.running:
-            self.draw()
+            if not self.paused:
+                self.draw()
+
             self.processEvents()
-            self.update()
+
+            if not self.paused:
+                self.update()
+
             self.fpsClock.tick( DEFAULT_FPS )

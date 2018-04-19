@@ -15,10 +15,12 @@ from game_constants import *
 # Special interactions can be overloaded by testing for the collision item's type.
 class InteractionType( object ):
     NONE = 0
-    IMPERVIOUS = 1      # Objects that collide with all objects.
-    SOLID = 2           # Objects that collide with other solid objects.
-    OVERLAY = 4         # Objects that don't normally collide with others, but otherwise interact, eg. coin.
-    GHOST = 8           # Only interacts with things sensitive to ghosts.
+    IMPERVIOUS = 1      # Impervious to anything except perhaps neutrino.
+    HARD = 2            # Like the wall of a background.
+    SOLID = 4           # Like normal sprites and items.
+    OVERLAY = 8         # Normally no collision but some interaction, eg. coin.
+    GHOST = 16          # Only interacts with things sensitive to ghosts, but collides with IMPERVIOUS.
+    FOG = 32            # Doesn't collide with anything but can have some interaction.
     NEUTRINO = 64       # Very rarely interacts. Only with huge tanks of water.
 
 
@@ -66,6 +68,7 @@ class Object( object ):
         self.scene = None
         self.name = kwArgs.get( 'name', None )
         self.visible = kwArgs.get( 'visible', True )
+        self.enabled = kwArgs.get( 'enabled', True )
         self.pos = pos
         self.posStack = []
         self.size = kwArgs.get( 'size', Object.DEFAULT_OBJECT_SIZE )
@@ -88,14 +91,16 @@ class Object( object ):
         self.vpColRect = None
         self.attachedObjects = []
         self.surface = None
+        # The mask used for interaction detection.
+        self.interactionMask = None
         # The mask used for collision detection.
-        self.mask = None
+        self.collisionMask = None
         # Keep hold of the surface used to create the mask for debugging purposes.
-        self.maskSurface = None
+        self.collisionMaskSurface = None
         # The object type and collision mask used to check if objects can collide.
         self.objectProperties = kwArgs.get( 'objectProperties', InteractionType.SOLID )
-        self.interactionMask = kwArgs.get( 'interactionMask', InteractionType.IMPERVIOUS | InteractionType.SOLID | InteractionType.OVERLAY )
-        self.collisionMask = kwArgs.get( 'collisionMask', InteractionType.IMPERVIOUS | InteractionType.SOLID )
+        self.interactionTypes = kwArgs.get( 'interactionTypes', InteractionType.SOLID | InteractionType.OVERLAY | InteractionType.GHOST )
+        self.collisionTypes = kwArgs.get( 'collisionTypes', InteractionType.IMPERVIOUS | InteractionType.HARD | InteractionType.SOLID )
         # Surface created first. Rects are calculated from the surface width and height.
         self.updateSurface()
         self.updateRect()
@@ -103,7 +108,8 @@ class Object( object ):
 
     def delete( self ):
         if self.scene:
-            self.scene.deleteObject( self )
+            self.scene.removeObject( self )
+            del self
 
 
     def __repr__( self ):
@@ -116,6 +122,14 @@ class Object( object ):
 
     def toggleVisibility( self ):
         self.visible = not self.visible
+
+
+    def setEnabled( self, enabled ):
+        self.enabled = enabled
+
+
+    def toggleEnabled( self ):
+        self.enabled = not self.enabled
 
 
     def getScene( self ):
@@ -131,12 +145,12 @@ class Object( object ):
         self.objectProperties = objectProperties
 
 
-    def setInteractionMask( self, interactionMask ):
-        self.interactionMask = interactionMask
+    def setInteractionTypes( self, interactionTypes ):
+        self.interactionTypes = interactionTypes
 
 
-    def setCollisionMask( self, collisionMask ):
-        self.collisionMask = collisionMask
+    def setCollisionTypes( self, collisionTypes ):
+        self.collisionTypes = collisionTypes
 
 
     # Insert the supplied keyword unless set from the constructor.
@@ -145,10 +159,16 @@ class Object( object ):
         # print "mergeKwArg %s %s" % ( key, kwArgs[key] )
 
 
-    def mergeNonInteractingKwArgs( self, kwArgs ):
+    def mergeOverlayKwArgs( self, kwArgs ):
         self.mergeKwArg( 'objectProperties', InteractionType.OVERLAY, kwArgs )
-        self.mergeKwArg( 'interactionMask', InteractionType.IMPERVIOUS | InteractionType.SOLID, kwArgs )
-        self.mergeKwArg( 'collisionMask', InteractionType.IMPERVIOUS, kwArgs )
+        self.mergeKwArg( 'interactionTypes', InteractionType.IMPERVIOUS | InteractionType.HARD | InteractionType.SOLID, kwArgs )
+        self.mergeKwArg( 'collisionTypes', InteractionType.IMPERVIOUS | InteractionType.HARD, kwArgs )
+
+
+    def mergeNonInteractingKwArgs( self, kwArgs ):
+        self.mergeKwArg( 'objectProperties', InteractionType.NONE, kwArgs )
+        self.mergeKwArg( 'interactionTypes', InteractionType.NONE, kwArgs )
+        self.mergeKwArg( 'collisionTypes', InteractionType.NONE, kwArgs )
 
 
     def moveToScene( self, scene ):
@@ -217,8 +237,9 @@ class Object( object ):
 
     def updateSurface( self ):
         self.surface = self.getSurface()
-        self.maskSurface = self.getMaskSurface( self.surface )
-        self.mask = pygame.mask.from_surface( self.maskSurface )
+        self.collisionMaskSurface = self.getMaskSurface( self.surface )
+        self.collisionMask = pygame.mask.from_surface( self.collisionMaskSurface )
+        self.interactionMask = pygame.mask.from_surface( self.surface )
 
 
     def getPositionStyleOffset( self, camera = ORIGIN, offset = ORIGIN ):
@@ -341,33 +362,82 @@ class Object( object ):
         if not self.scene:
             return []
 
-        return self.scene.getCollisions( self )
+        return self.scene.getAllCollisions( self )
 
 
     def collidesWithScene( self ):
         if not self.scene:
-            return False
+            return None
 
-        collides = self.scene.collides( self )
+        event = self.scene.collides( self )
 
-        return collides
+        return event
+
+
+    def isInteractionTypePair( self, obj, objTypePlusNameA, objTypePlusNameB ):
+        selfType = self.__class__.__name__
+        objType = obj.__class__.__name__
+
+        splitA = objTypePlusNameA.split( '=' )
+        splitB = objTypePlusNameB.split( '=' )
+        objTypeA = splitA[0]
+        objTypeB = splitB[0]
+
+        if 2 == len( splitA ):
+            nameA = splitA[1]
+        else:
+            nameA = None
+
+        if 2 == len( splitB ):
+            nameB = splitB[1]
+        else:
+            nameB = None
+
+        # print "Checking iteraction/collision selfType %s objType %s objTypePlusNameA %s objTypePlusNameB %s" % ( selfType, objType, objTypePlusNameA, objTypePlusNameB )
+
+        isPair = False
+
+        if selfType == objTypeA and objType == objTypeB:
+            if ( not nameA or nameA == self.name ) and ( not nameB or nameB == obj.name ):
+                isPair = True
+        elif objType == objTypeA and selfType == objTypeB:
+            if ( not nameA or nameA == obj.name ) and ( not nameB or nameB == self.name ):
+                isPair = True
+
+        return isPair
 
 
     def canInteract( self, obj ):
-        return self.objectProperties & obj.interactionMask and self.interactionMask & obj.objectProperties
+        # if self.objectProperties == InteractionType.GHOST or obj.objectProperties == InteractionType.GHOST:
+        #     print "self.objectProperties %d" % self.objectProperties
+        #     print "obj.objectProperties %d" % obj.objectProperties
+        #     print "self.interactionTypes %d" % self.interactionTypes
+        #     print "obj.interactionTypes %d" % obj.interactionTypes
+
+        # if self.__class__.__name__ == 'Player' and obj.__class__.__name__ == 'GhostSprite' and self.collidesWithRect( obj ):
+        #     print "Checking interaction for %s and %s" % ( self.__class__.__name__, obj.__class__.__name__ )
+        #     print "self.objectProperties %d" % self.objectProperties
+        #     print "obj.interactionTypes %d" % obj.interactionTypes
+        #     print "canInteract %s" % ( self.objectProperties & obj.interactionTypes )
+
+        return self != obj and self.enabled and obj.enabled and self.interactionTypes & obj.objectProperties
 
 
     def canCollide( self, obj ):
         # if self.objectProperties == InteractionType.IMPERVIOUS or obj.objectProperties == InteractionType.IMPERVIOUS:
         #     print "self.objectProperties %d" % self.objectProperties
         #     print "obj.objectProperties %d" % obj.objectProperties
-        #     print "self.collisionMask %d" % self.collisionMask
-        #     print "obj.collisionMask %d" % obj.collisionMask
-        return self.objectProperties & obj.collisionMask and self.collisionMask & obj.objectProperties
+        #     print "self.collisionTypes %d" % self.collisionTypes
+        #     print "obj.collisionTypes %d" % obj.collisionTypes
+        return self != obj and self.enabled and obj.enabled and self.collisionTypes & obj.objectProperties
 
 
     def interactsWith( self, obj ):
-        return self.canInteract( obj ) and self.collidesWithColour( obj )
+        interacts = self.canInteract( obj ) and self.collidesWithColour( obj, useInteractionMask=True )
+
+        # print "interacts %s" % interacts
+
+        return interacts
 
 
     def collidesWith( self, obj ):
@@ -383,18 +453,35 @@ class Object( object ):
         return collides
 
 
-    def collidesWithColour( self, obj ):
+    def collidesWithInteractionMask( self, obj ):
+        offset = self.getRelativeOffset( obj )
+        overlapPoint = self.interactionMask.overlap( obj.interactionMask, offset.asTuple() )
+        collides = ( overlapPoint is not None )
+
+        return collides
+
+
+    def collidesWithCollisionMask( self, obj ):
+        offset = self.getRelativeOffset( obj )
+        overlapPoint = self.collisionMask.overlap( obj.collisionMask, offset.asTuple() )
+        collides = ( overlapPoint is not None )
+
+        # print "collidesWithRect %s" % collides
+
+        # numOverlapPixels = self.collisionMask.overlap_area( obj.collisionMask, offset.asTuple() )
+        #  = ( numOverlapPixels > 0 )
+
+        return collides
+
+
+    def collidesWithColour( self, obj, useInteractionMask = False ):
         collides = self.collidesWithRect( obj )
 
         if collides:
-            offset = self.getRelativeOffset( obj )
-            overlapPoint = self.mask.overlap( obj.mask, offset.asTuple() )
-            collides = ( overlapPoint is not None )
-
-            # print "collidesWithRect %s" % collides
-
-            # numOverlapPixels = self.mask.overlap_area( obj.mask, offset.asTuple() )
-            #  = ( numOverlapPixels > 0 )
+            if useInteractionMask:
+                collides = self.collidesWithInteractionMask( obj )
+            else:
+                collides = self.collidesWithCollisionMask( obj )
 
         return collides
 
@@ -435,6 +522,7 @@ class Object( object ):
         return Rectangle( Point( self.pos.x, self.pos.y ), Point( self.pos.x + self.width, self.pos.y + self.height ) )
 
 
+    # Update the view of the object, ie. when in the current scene.
     def update( self, camera = ORIGIN, offset = ORIGIN ):
         if self.updateCallback:
             self.updateCallback( self, camera, offset )
@@ -444,6 +532,7 @@ class Object( object ):
         self.checkLifetime()
 
 
+    # Need to convert this to real time based delay.
     def checkLifetime( self ):
         if self.lifetime:
             self.lifetime -= 1
@@ -484,7 +573,7 @@ class Object( object ):
             if viewPortCls.debugDraw:
                 viewPortCls.sdrawBox( surface, self.vpRect, colour=self.colour )
                 viewPortCls.sdrawBox( surface, self.vpColRect, colour=self.colour )
-                surface.blit( self.maskSurface, self.vpRect )
+                surface.blit( self.collisionMaskSurface, self.vpRect )
 
             self.drawAttachedObjects( surface )
 
@@ -536,6 +625,7 @@ class Object( object ):
 class ImageObject( Object ):
     def __init__( self, pos, image, **kwArgs ):
         self.image = image
+        self.attachedText = None
 
         kwArgs['ratio'] = self.calculateRatio( **kwArgs )
 
@@ -550,9 +640,30 @@ class ImageObject( Object ):
         return surface
 
 
+    def getImage( self ):
+        return self.image
+
+
     def swapImage( self, image ):
         self.image = image
         self.updateSurface()
+
+
+    def checkSwapImage( self, image ):
+        if not image:
+            return False
+
+        currentImage = self.getImage()
+        self.swapImage( image )
+        swapped = True
+
+        event = self.collidesWithScene()
+
+        if event and event.type == COLLISION_EVENT:
+            self.swapImage( currentImage )
+            swapped = False
+
+        return swapped
 
 
     def calculateRatio( self, **kwArgs ):
@@ -567,6 +678,15 @@ class ImageObject( Object ):
                 ratio *= modRatio
 
         return ratio
+
+
+    def attachText( self, text, offset = DEFAULT_IMAGE_OBJECT_TEXT_OFFSET, colour = GREEN ):
+        if self.attachedText:
+            self.detachObject( self.attachedText )
+
+        self.attachedText = Text( offset, text, font=fontCache['small'], colour=colour )
+        self.attachObject( self.attachedText )
+
 
 
 
@@ -588,19 +708,31 @@ class Box( Object ):
 
 
 
-class BackGround( ImageObject ):
+class Border( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
         self.mergeKwArg( 'objectProperties', InteractionType.IMPERVIOUS, kwArgs )
+        self.mergeKwArg( 'interactionTypes', InteractionType.NONE, kwArgs )
+        self.mergeKwArg( 'collisionTypes', InteractionType.IMPERVIOUS | InteractionType.SOLID | InteractionType.OVERLAY | InteractionType.GHOST, kwArgs )
         ImageObject.__init__( self, pos, image, **kwArgs )
         # print "self.objectProperties %d" % self.objectProperties
 
 
 
 
+class BackGround( ImageObject ):
+    def __init__( self, pos, image, **kwArgs ):
+        self.mergeKwArg( 'objectProperties', InteractionType.HARD, kwArgs )
+        self.mergeKwArg( 'interactionTypes', InteractionType.NONE, kwArgs )
+        ImageObject.__init__( self, pos, image, **kwArgs )
+
+
+
+
 class Fog( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
-        self.mergeKwArg( 'objectProperties', InteractionType.NONE, kwArgs )
-        self.mergeKwArg( 'collisionMask', InteractionType.NONE, kwArgs )
+        self.mergeKwArg( 'objectProperties', InteractionType.FOG, kwArgs )
+        self.mergeKwArg( 'interactionTypes', InteractionType.NONE, kwArgs )
+        self.mergeKwArg( 'collisionTypes', InteractionType.NONE, kwArgs )
         ImageObject.__init__( self, pos, image, **kwArgs )
 
 
@@ -615,7 +747,7 @@ class Shop( ImageObject ):
 
 class Digspot( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
-        self.mergeNonInteractingKwArgs( kwArgs )
+        self.mergeOverlayKwArgs( kwArgs )
         ImageObject.__init__( self, pos, image, **kwArgs )
 
         self.digCount = 0
@@ -631,7 +763,7 @@ class Bush( ImageObject ):
 
 class Arrow( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
-        self.mergeNonInteractingKwArgs( kwArgs )
+        self.mergeOverlayKwArgs( kwArgs )
         ImageObject.__init__( self, pos, image, **kwArgs )
 
 
@@ -639,7 +771,7 @@ class Arrow( ImageObject ):
 
 class Monster( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
-        self.mergeNonInteractingKwArgs( kwArgs )
+        self.mergeOverlayKwArgs( kwArgs )
         ImageObject.__init__( self, pos, image, **kwArgs )
 
 
@@ -647,7 +779,7 @@ class Monster( ImageObject ):
 
 class Coin( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
-        self.mergeNonInteractingKwArgs( kwArgs )
+        self.mergeOverlayKwArgs( kwArgs )
         ImageObject.__init__( self, pos, image, **kwArgs )
 
 
@@ -658,6 +790,7 @@ class Text( Object ):
     def __init__( self, pos, text, **kwArgs ):
         self.font = kwArgs.get( 'font', fontCache['basic'] )
         self.text = text
+        self.mergeNonInteractingKwArgs( kwArgs )
 
         Object.__init__( self, pos, **kwArgs )
 
@@ -711,8 +844,8 @@ class DynamicObject( ImageObject ):
         images['down'] = kwArgs.get( 'imageDown', None )
         images['image'] = kwArgs.get( 'image', self.images['left'] )
         self.steps = 0
+        self.canMove = True
         self.movementStyle = movementStyle
-        self.attachedText = None
         movementStyle.setMoveObject( self )
 
         ImageObject.__init__( self, pos, self.images['left'], **kwArgs )
@@ -727,51 +860,64 @@ class DynamicObject( ImageObject ):
         bounceRate = movementStyle.bounceRate
         bounceHeight = movementStyle.bounceHeight
 
+        if bounceRate == 0 or bounceHeight == 0:
+            return 0
+
         return int( math.sin( ( math.pi / float( bounceRate ) ) * movementStyle.bounce ) * bounceHeight )
+
+
+    def toggleMovement( self ):
+        self.canMove = not self.canMove
 
 
     def checkUpdateObjectDirection( self ):
         # Flip the player image if changed direction.
         horizontalMovement = self.movementStyle.moving( 'horizontal' )
         verticalMovement = self.movementStyle.moving( 'vertical' )
+        imageToSwap = None
+        newMirrorH = False
+        currentImage = self.getImage()
 
-        if horizontalMovement or verticalMovement:
-            if self.attachedText:
-                self.detachObject( self.attachedText )
-
-            # self.attachedText = Text( Point( -20, -20 ), horizontalMovement, font=fontCache['small'], colour=GREEN )
-            # self.attachObject( self.attachedText )
+        # if horizontalMovement or verticalMovement:
+        #    self.attachText( horizontalMovement )
 
         if horizontalMovement:
             if 'left' == horizontalMovement and self.mirrorH and self.images.has_key( 'left' ):
-                self.mirrorH = False
-                self.swapImage( self.images['left'] )
+                newMirrorH = False
+                imageToSwap = self.images['left']
             elif 'right' == horizontalMovement and not self.mirrorH and self.images.has_key( 'right' ):
                 # Flip the player image.
-                self.mirrorH = True
-                self.swapImage( self.images['right'] )
-        elif verticalMovement:
-            if 'up' == verticalMovement and self.images.has_key( 'up' ):
+                newMirrorH = True
+                imageToSwap = self.images['right']
+
+        if verticalMovement:
+            if 'up' == verticalMovement and self.mirrorV and self.images.has_key( 'up' ):
                 self.mirrorV = False
-                #self.swapImage( self.images['up'] )
-            elif 'down' == verticalMovement and self.images.has_key( 'down' ):
+                # self.swapImage( self.images['up'] )
+            elif 'down' == verticalMovement and not self.mirrorV and self.images.has_key( 'down' ):
                 self.mirrorV = True
-                #self.swapImage( self.images['down'] )
+                # self.swapImage( self.images['down'] )
                 # Up and down images are only for Sheriff Quest, so I suggest making seperate files.
 
-
-    def setMovement( self, key ):
-        self.movementStyle.setMovement( key )
-        self.checkUpdateObjectDirection()
+        if self.checkSwapImage( imageToSwap ):
+            self.mirrorH = newMirrorH
 
 
-    def stopMovement( self, key ):
-        self.movementStyle.stopMovement( key )
-        self.checkUpdateObjectDirection()
+
+    def setMovement( self, **kwArgs ):
+        self.movementStyle.setMovement( **kwArgs )
+
+
+    def stopMovement( self, **kwArgs ):
+        self.movementStyle.stopMovement( **kwArgs )
 
 
     def move( self ):
+        if not self.canMove:
+            return
+
         newPos = self.movementStyle.move( self.pos )
+        self.checkUpdateObjectDirection()
         # print( newPos )
 
         if newPos != self.pos:
@@ -780,7 +926,7 @@ class DynamicObject( ImageObject ):
 
 
     def update( self, camera = ORIGIN, offset = ORIGIN, gameOverMode = False, invulnerableMode = False ):
-        flashIsOn = round( time.time(), 1 ) * 10 % 2 == 1
+        flashIsOn = ( ( round( time.time(), 1 ) * 10 ) % 2 ) == 1
 
         if not gameOverMode and not ( invulnerableMode and flashIsOn ):
             if offset == ORIGIN :
@@ -788,9 +934,11 @@ class DynamicObject( ImageObject ):
                 offset = Point( 0, - self.getBounceAmount() )
 
             Object.update( self, camera, offset )
-            #self.setVisible( True )
-        #else:
-            #self.setVisible( False )
+
+            if invulnerableMode:
+                self.setVisible( True )
+        elif invulnerableMode:
+            self.setVisible( False )
 
 
 
@@ -817,6 +965,17 @@ class Sprite( DynamicObject ):
 
     def getCentre( self ):
         return Point( self.x + int( ( float( self.size ) + 0.5 ) / 2 ), self.y + int( ( float( self.size ) + 0.5 ) / 2 ) )
+
+
+
+
+
+class GhostSprite( Sprite ):
+    def __init__( self, pos, movementStyle, **kwArgs ):
+        self.mergeKwArg( 'objectProperties', InteractionType.GHOST, kwArgs )
+        self.mergeKwArg( 'interactionTypes', InteractionType.SOLID | InteractionType.OVERLAY | InteractionType.GHOST, kwArgs )
+        self.mergeKwArg( 'collisionTypes', InteractionType.IMPERVIOUS | InteractionType.GHOST, kwArgs )
+        Sprite.__init__( self, pos, movementStyle, **kwArgs )
 
 
 
