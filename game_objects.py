@@ -69,6 +69,7 @@ class Object( object ):
         self.name = kwArgs.get( 'name', None )
         self.visible = kwArgs.get( 'visible', True )
         self.enabled = kwArgs.get( 'enabled', True )
+        self.drawOrder = kwArgs.get( 'drawOrder', 4 )
         self.pos = pos
         self.posStack = []
         self.size = kwArgs.get( 'size', Object.DEFAULT_OBJECT_SIZE )
@@ -713,6 +714,7 @@ class Border( ImageObject ):
         self.mergeKwArg( 'objectProperties', InteractionType.IMPERVIOUS, kwArgs )
         self.mergeKwArg( 'interactionTypes', InteractionType.NONE, kwArgs )
         self.mergeKwArg( 'collisionTypes', InteractionType.IMPERVIOUS | InteractionType.SOLID | InteractionType.OVERLAY | InteractionType.GHOST, kwArgs )
+        self.mergeKwArg( 'drawOrder', 0, kwArgs )
         ImageObject.__init__( self, pos, image, **kwArgs )
         # print "self.objectProperties %d" % self.objectProperties
 
@@ -723,6 +725,7 @@ class BackGround( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
         self.mergeKwArg( 'objectProperties', InteractionType.HARD, kwArgs )
         self.mergeKwArg( 'interactionTypes', InteractionType.NONE, kwArgs )
+        self.mergeKwArg( 'drawOrder', 0, kwArgs )
         ImageObject.__init__( self, pos, image, **kwArgs )
 
 
@@ -733,6 +736,7 @@ class Fog( ImageObject ):
         self.mergeKwArg( 'objectProperties', InteractionType.FOG, kwArgs )
         self.mergeKwArg( 'interactionTypes', InteractionType.NONE, kwArgs )
         self.mergeKwArg( 'collisionTypes', InteractionType.NONE, kwArgs )
+        self.mergeKwArg( 'drawOrder', 8, kwArgs )
         ImageObject.__init__( self, pos, image, **kwArgs )
 
 
@@ -772,6 +776,7 @@ class Arrow( ImageObject ):
 class Monster( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
         self.mergeOverlayKwArgs( kwArgs )
+        self.mergeKwArg( 'drawOrder', 20, kwArgs )
         ImageObject.__init__( self, pos, image, **kwArgs )
 
 

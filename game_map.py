@@ -7,6 +7,8 @@ from geometry import *
 from game_constants import *
 
 
+# Constants.
+
 # Temporary constant.
 DEFAULT_BACKGROUND_COLOUR = (211, 211, 211)
 
@@ -31,8 +33,8 @@ def createClickCollisionEvent( obj, pos ):
 
 
 class ImageStore( object ):
-    def __init__( self ):
-        pass
+    def __init__( self, imageDir = 'images' ):
+        self.imageDir = imageDir
 
 
     def load( self, name, modes = None ):
@@ -63,9 +65,44 @@ class ImageStore( object ):
             image = self.loadImage( imageFile )
             self.__dict__[nameNoSpace] = image
 
+        return image
+
 
     def loadImage( self, imageFile ):
+        imageFile = '%s/%s' % ( self.imageDir, imageFile )
+
         return pygame.image.load( imageFile ).convert_alpha()
+
+
+
+
+class ObjectDrawSortKey:
+    def __init__( self, obj ):
+        self.obj = obj
+
+
+    def __lt__( self, other ):
+        return self.obj.drawOrder < other.obj.drawOrder or ( self.obj.drawOrder == other.obj.drawOrder and self.obj.colRect.bottom < other.obj.colRect.bottom )
+
+
+    def __eq__( self, other ):
+        return self.obj.drawOrder == other.obj.drawOrder and self.obj.colRect.bottom == other.obj.colRect.bottom
+
+
+    def __gt__( self, other ):
+        return self.obj.drawOrder > other.obj.drawOrder or ( self.obj.drawOrder == other.obj.drawOrder and self.obj.colRect.bottom > other.obj.colRect.bottom )
+
+
+    def __le__( self, other ):
+        return not ( self > other )
+
+
+    def __ge__( self, other ):
+        return not ( self < other )
+
+
+    def __ne__( self, other ):
+        return not ( self == other )
 
 
 
@@ -166,7 +203,7 @@ class ObjectStore( object ):
             objList = objLists[objType]
             drawList.extend( objList )
 
-        drawList.sort( key=lambda obj : obj.colRect.bottom ) #, reverse=reverse )
+        drawList.sort( key=lambda obj : ObjectDrawSortKey( obj ) ) #, reverse=reverse )
 
         return drawList
 
@@ -447,12 +484,12 @@ class Map( object ):
 
 
 
-    def draw( self, viewPort, objTypes = None ):
+    def draw( self, viewPort ):
         self.ensureScene()
-        self.scene.draw( viewPort, objTypes )
+        self.scene.draw( viewPort )
         # self.sprites.draw( viewPort, objTypes )
         # self.players.draw( viewPort, objTypes )
-        self.overlays.draw( viewPort, objTypes )
+        self.overlays.draw( viewPort )
 
 
     def __getattr__( self, key ):

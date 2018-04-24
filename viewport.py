@@ -242,12 +242,12 @@ class ViewPort( object ):
         pygame.display.update()
 
 
-    def playSound( self, soundFileName, ext = 'ogg', checkBusy = False ):
+    def playSound( self, soundFileName, ext = 'ogg', checkBusy = False, soundsDir = 'sounds' ):
         if checkBusy and pygame.mixer.get_busy():
             # print "Not playing sound %s because already playing a sound." % soundFileName
             return
 
-        soundFilePath = soundFileName + '.' + ext
+        soundFilePath = '%s/%s.%s' % ( soundsDir, soundFileName, ext )
         pygame.mixer.init()
         # pygame.mixer.pre_init(44100, -16, 2, 2048)
         # pygame.init()
@@ -257,7 +257,8 @@ class ViewPort( object ):
         # ]]
 
 
-    def loadMusic( self, musicFile ):
+    def loadMusic( self, musicFile, soundsDir = 'sounds' ):
+        musicFile = '%s/%s' % ( soundsDir, musicFile )
         pygame.mixer.music.load( musicFile )
 
 

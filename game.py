@@ -18,7 +18,7 @@ DEFAULT_FPS = 30 # frames per second to update the screen
 class Game( object ):
     currentGame = None
 
-    def __init__( self, name, icon, viewPort ):
+    def __init__( self, name, iconName, viewPort ):
         # Set up the game state variables.
 
         # Store the current game for debugging purposes.
@@ -29,9 +29,12 @@ class Game( object ):
         self.clickDragLimit = 10
         self.fpsClock = pygame.time.Clock()
         self.updateOrder = None
+        self.images = game_map.ImageStore()
+        iconImage = self.images.load( iconName )
+        self.loadImages()
 
         pygame.display.set_caption( name )
-        pygame.display.set_icon( pygame.image.load( icon ) )
+        pygame.display.set_icon( iconImage )
 
         self.init()
 
@@ -45,6 +48,9 @@ class Game( object ):
 
         self.initMap()
 
+
+    def loadImages( self ):
+        pass
 
     # Initialise the contents of the map
     def initMap( self ):
