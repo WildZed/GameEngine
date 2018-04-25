@@ -111,6 +111,7 @@ class ObjectStore( object ):
     def __init__( self, parentMap ):
         self.parentMap = parentMap
         self.objectLists = {}
+        self.drawList = []
 
 
     def getMap( self ):
@@ -127,6 +128,7 @@ class ObjectStore( object ):
             objLists[objType] = objList = []
 
         objList.append( obj )
+        self.drawList.append( obj )
         obj.setScene( scene )
 
 
@@ -139,6 +141,7 @@ class ObjectStore( object ):
             objList = objLists[objType]
 
             objList.remove( obj )
+            self.drawList.remove( obj )
 
 
     def deleteAllObjectsOfType( self, objType ):
@@ -195,13 +198,11 @@ class ObjectStore( object ):
             objList.sort( key=lambda obj : obj.colRect.bottom, reverse=reverse )
 
 
-    def getDrawOrderObjects( self ):
-        drawList = []
-        objLists = self.objectLists
+    def getSortedDrawList( self ):
+        drawList = copy.copy( self.drawList )
 
-        for objType in objLists.keys():
-            objList = objLists[objType]
-            drawList.extend( objList )
+        for obj in self.drawList:
+            drawList.extend( obj.getAssociatedObjects() )
 
         drawList.sort( key=lambda obj : ObjectDrawSortKey( obj ) ) #, reverse=reverse )
 
@@ -209,7 +210,7 @@ class ObjectStore( object ):
 
 
     def draw( self, viewPort, debugDraw = False ):
-        drawList = self.getDrawOrderObjects()
+        drawList = self.getSortedDrawList()
 
         for obj in drawList:
             obj.draw( viewPort.displaySurface )

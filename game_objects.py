@@ -91,6 +91,7 @@ class Object( object ):
         self.vpRect = None
         self.vpColRect = None
         self.attachedObjects = []
+        self.associatedObjects = []
         self.surface = None
         # The mask used for interaction detection.
         self.interactionMask = None
@@ -292,8 +293,12 @@ class Object( object ):
         return objPos - selfPos
 
 
-    def attachObject( self, obj ):
-        self.attachedObjects.append( obj )
+    def attachObject( self, obj, style = 'tight' ):
+        if 'loose' == style or self.drawOrder != obj.drawOrder:
+            self.associatedObjects.append( obj )
+        else:
+            self.attachedObjects.append( obj )
+
         obj.parent = self
 
         if obj.positionStyle == '':
@@ -302,10 +307,22 @@ class Object( object ):
         return obj
 
 
+    def getAttachedObjects( self ):
+        return self.attachedObjects
+
+
+    def getAssociatedObjects( self ):
+        return self.associatedObjects
+
+
     def getNamedAttachedObject( self, name ):
-        for attachedObject in self.attachedObjects:
-            if attachedObject.name == name:
-                return attachedObject
+        for obj in self.attachedObjects:
+            if obj.name == name:
+                return obj
+
+        for obj in self.associatedObjects:
+            if obj.name == name:
+                return obj
 
         return None
 
@@ -314,6 +331,7 @@ class Object( object ):
         try:
             obj.parent = None
             self.attachedObjects.remove( obj )
+            self.associatedObjects.remove( obj )
         except ValueError:
             obj = None
 
@@ -331,11 +349,13 @@ class Object( object ):
 
     def detachAllObjects( self ):
         attachedObjectList = self.attachedObjects
+        attachedObjectList.extend( self.associatedObjects )
 
-        for attachedObject in attachedObjectList:
-            attachedObject.parent = None
+        for obj in attachedObjectList:
+            obj.parent = None
 
         self.attachedObjects = []
+        self.associatedObjects = []
 
         return attachedObjectList
 
@@ -544,7 +564,7 @@ class Object( object ):
 
 
     def updateAttachedObjects( self, camera = ORIGIN, offset = ORIGIN ):
-        for attachedObject in self.attachedObjects:
+        for attachedObject in self.attachedObjects + self.associatedObjects:
             attachedObjectOffset = copy.copy( offset )
 
             # Calculate attached objects' positions relative to this object.
