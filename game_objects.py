@@ -895,38 +895,34 @@ class DynamicObject( ImageObject ):
         self.canMove = not self.canMove
 
 
+    def getImageSwap( self, direction ):
+        images = self.images
+        imageToSwap = None
+
+        if direction in images:
+            newImage = images[direction]
+
+            if self.getImage() is not newImage:
+                imageToSwap = newImage
+
+        return imageToSwap
+
+
     def checkUpdateObjectDirection( self ):
         # Flip the player image if changed direction.
         horizontalMovement = self.movementStyle.moving( 'horizontal' )
         verticalMovement = self.movementStyle.moving( 'vertical' )
         imageToSwap = None
-        newMirrorH = False
-        currentImage = self.getImage()
 
         # if horizontalMovement or verticalMovement:
         #    self.attachText( horizontalMovement )
 
         if horizontalMovement:
-            if 'left' == horizontalMovement and self.mirrorH and self.images.has_key( 'left' ):
-                newMirrorH = False
-                imageToSwap = self.images['left']
-            elif 'right' == horizontalMovement and not self.mirrorH and self.images.has_key( 'right' ):
-                # Flip the player image.
-                newMirrorH = True
-                imageToSwap = self.images['right']
+            imageToSwap = self.getImageSwap( horizontalMovement )
+        elif verticalMovement:
+            imageToSwap = self.getImageSwap( verticalMovement )
 
-        if verticalMovement:
-            if 'up' == verticalMovement and self.mirrorV and self.images.has_key( 'up' ):
-                self.mirrorV = False
-                # self.swapImage( self.images['up'] )
-            elif 'down' == verticalMovement and not self.mirrorV and self.images.has_key( 'down' ):
-                self.mirrorV = True
-                # self.swapImage( self.images['down'] )
-                # Up and down images are only for Sheriff Quest, so I suggest making seperate files.
-
-        if self.checkSwapImage( imageToSwap ):
-            self.mirrorH = newMirrorH
-
+        self.checkSwapImage( imageToSwap )
 
 
     def setMovement( self, **kwArgs ):
@@ -942,7 +938,7 @@ class DynamicObject( ImageObject ):
             return
 
         newPos = self.movementStyle.move( self.pos )
-        self.checkUpdateObjectDirection()
+        # self.checkUpdateObjectDirection()
         # print( newPos )
 
         if newPos != self.pos:
@@ -959,6 +955,7 @@ class DynamicObject( ImageObject ):
                 offset = Point( 0, - self.getBounceAmount() )
 
             Object.update( self, camera, offset )
+            self.checkUpdateObjectDirection()
 
             if invulnerableMode:
                 self.setVisible( True )

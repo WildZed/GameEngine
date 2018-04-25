@@ -223,6 +223,7 @@ class CollisionBoundary( Boundary ):
                         # print "moveObject %s collides in curPos with %s" % ( moveObject.name, event.obj2.name )
                         # import game
                         # game.Game.currentGame.togglePaused()
+                        # newPos = curPos
                         newPos = origNewPos
                         self.resetBlocked()
                     else:
