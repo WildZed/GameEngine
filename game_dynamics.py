@@ -224,6 +224,7 @@ class CollisionBoundary( Boundary ):
                         # import game
                         # game.Game.currentGame.togglePaused()
                         newPos = origNewPos
+                        self.resetBlocked()
                     else:
                         newPos = curPos
                 else:

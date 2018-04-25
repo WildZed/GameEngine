@@ -20,6 +20,7 @@ class Game( object ):
 
     def __init__( self, name, iconName, viewPort ):
         # Set up the game state variables.
+        print( "Initialising game engine..." )
 
         # Store the current game for debugging purposes.
         # Only one instance supported.
@@ -29,6 +30,7 @@ class Game( object ):
         self.clickDragLimit = 10
         self.fpsClock = pygame.time.Clock()
         self.updateOrder = None
+        print( "Loading images..." )
         self.images = game_map.ImageStore()
         iconImage = self.images.load( iconName )
         self.loadImages()
@@ -36,7 +38,9 @@ class Game( object ):
         pygame.display.set_caption( name )
         pygame.display.set_icon( iconImage )
 
+        print( "Game run initialisation..." )
         self.init()
+        print( "Game engine initialised." )
 
 
     def init( self ):
@@ -46,6 +50,7 @@ class Game( object ):
         self.dragPos = None
         self.gameMap = game_map.Map()
 
+        print( "Initialising map..." )
         self.initMap()
 
 

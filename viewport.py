@@ -1,7 +1,7 @@
 # Monkey-Rabbit Games
 # ViewPort
 
-import random, pygame, copy
+import random, pygame, copy, os
 from pygame.locals import *
 from geometry import *
 from game_utils import fontCache
@@ -49,7 +49,7 @@ class ViewPort( object ):
         pygame.draw.lines( surface, self.colour, True, points )
 
 
-    def __init__( self, width, height ):
+    def __init__( self, width, height, topLeft = None ):
         self.width = width
         self.height = height
         self.halfWidth = int( width / 2 )
@@ -58,6 +58,9 @@ class ViewPort( object ):
         # Camera is the top left of where the camera view is.
         self.camera = Point()
         self.cameraMovementStyle = None
+
+        if topLeft:
+            os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % ( topLeft.x, topLeft.y )
 
         pygame.init()
 
