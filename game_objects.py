@@ -80,8 +80,8 @@ class Object( object ):
         #         'viewport_top_left', 'viewport_centre'
         self.positionStyle = kwArgs.get( 'positionStyle', '' )
         self.colour = kwArgs.get( 'colour', BLACK )
-        self.mirrorV = kwArgs.get( 'mirrorV', False )
-        self.mirrorH = kwArgs.get( 'mirrorH', False )
+        # self.mirrorV = kwArgs.get( 'mirrorV', False )
+        # self.mirrorH = kwArgs.get( 'mirrorH', False )
         self.updateCallback = kwArgs.get( 'updateCallback', None )
         self.lifetime = kwArgs.get( 'lifetime', None )
 
@@ -89,7 +89,7 @@ class Object( object ):
         self.rect = None
         self.colRect = None
         self.vpRect = None
-        self.vpColRect = None
+        # self.vpColRect = None
         self.attachedObjects = []
         self.associatedObjects = []
         self.surface = None
@@ -183,6 +183,13 @@ class Object( object ):
         return self.pos
 
 
+    def setPos( self, pos ):
+        self.pos = pos
+        # Updating rects to world coords.
+        # No need to update rects, because collision detection doesn't use them.
+        # self.updateRect()
+
+
     def pushPos( self, newPos, adjustedOldPos = None, offsetOldPos = None ):
         if adjustedOldPos:
             self.pos = adjustedOldPos
@@ -190,11 +197,11 @@ class Object( object ):
             self.pos += offsetOldPos
 
         self.posStack.append( self.pos )
-        self.pos = newPos
+        self.setPos( newPos )
 
 
     def popPos( self ):
-        self.pos = self.posStack.pop()
+        self.setPos( self.posStack.pop() )
 
         return self.pos
 
@@ -263,7 +270,6 @@ class Object( object ):
         self.rect = self.getRect( camera, offset )
         self.colRect = self.getCollisionRect( self.rect )
         self.vpRect = self.getViewportRect( camera, offset )
-        self.vpColRect = self.getCollisionRect( self.vpRect )
 
 
     # Get the object's surface top left position given an offset
@@ -454,15 +460,23 @@ class Object( object ):
 
 
     def interactsWith( self, obj ):
-        interacts = self.canInteract( obj ) and self.collidesWithColour( obj, useInteractionMask=True )
+        interactionPoint = None
+
+        if self.canInteract( obj ):
+            interactionPoint = self.collidesWithColour( obj, useInteractionMask=True )
 
         # print "interacts %s" % interacts
 
-        return interacts
+        return interactionPoint
 
 
     def collidesWith( self, obj ):
-        return self.canCollide( obj ) and self.collidesWithColour( obj )
+        collisionPoint = None
+
+        if self.canCollide( obj ):
+            collisionPoint = self.collidesWithColour( obj )
+
+        return collisionPoint
 
 
     def collidesWithRect( self, obj ):
@@ -477,34 +491,37 @@ class Object( object ):
     def collidesWithInteractionMask( self, obj ):
         offset = self.getRelativeOffset( obj )
         overlapPoint = self.interactionMask.overlap( obj.interactionMask, offset.asTuple() )
-        collides = ( overlapPoint is not None )
 
-        return collides
+        return overlapPoint
 
 
     def collidesWithCollisionMask( self, obj ):
         offset = self.getRelativeOffset( obj )
         overlapPoint = self.collisionMask.overlap( obj.collisionMask, offset.asTuple() )
-        collides = ( overlapPoint is not None )
+
+        if overlapPoint:
+            overlapPoint = self.getOffSetPos() + Point( overlapPoint )
 
         # print "collidesWithRect %s" % collides
 
         # numOverlapPixels = self.collisionMask.overlap_area( obj.collisionMask, offset.asTuple() )
         #  = ( numOverlapPixels > 0 )
 
-        return collides
+        return overlapPoint
 
 
     def collidesWithColour( self, obj, useInteractionMask = False ):
-        collides = self.collidesWithRect( obj )
+        # Rect is now only used for drawing, not collision. It is not guaranteed to be in the right place.
+        # collides = self.collidesWithRect( obj )
+        # overlapPoint = None
 
-        if collides:
-            if useInteractionMask:
-                collides = self.collidesWithInteractionMask( obj )
-            else:
-                collides = self.collidesWithCollisionMask( obj )
+        # if collides:
+        if useInteractionMask:
+            overlapPoint = self.collidesWithInteractionMask( obj )
+        else:
+            overlapPoint = self.collidesWithCollisionMask( obj )
 
-        return collides
+        return overlapPoint
 
 
     # Ask if the given world coordinate position collides with the object's full or collision rectangle.
@@ -592,8 +609,9 @@ class Object( object ):
             viewPortCls = viewport.ViewPort
 
             if viewPortCls.debugDraw:
+                vpColRect = self.getCollisionRect( self.vpRect )
                 viewPortCls.sdrawBox( surface, self.vpRect, colour=self.colour )
-                viewPortCls.sdrawBox( surface, self.vpColRect, colour=self.colour )
+                viewPortCls.sdrawBox( surface, vpColRect, colour=self.colour )
                 surface.blit( self.collisionMaskSurface, self.vpRect )
 
             self.drawAttachedObjects( surface )
@@ -606,16 +624,24 @@ class Object( object ):
 
     def __getattr__( self, key ):
         try:
-            if key == 'width':
-                return self.__dict__['surface'].get_width()
-            elif key == 'height':
-                return self.__dict__['surface'].get_height()
-            elif key == 'x':
-                return self.__dict__['pos'].x
-            elif key == 'y':
-                return self.__dict__['pos'].y
+            selfDict = self.__dict__
 
-            value = self.__dict__[key]
+            if key == 'width':
+                if 'surface' in selfDict:
+                    return selfDict['surface'].get_width()
+                else:
+                    return self.getWidth()
+            elif key == 'height':
+                if 'surface' in selfDict:
+                    return selfDict['surface'].get_height()
+                else:
+                    return self.getHeight()
+            elif key == 'x':
+                return selfDict['pos'].x
+            elif key == 'y':
+                return selfDict['pos'].y
+
+            value = selfDict[key]
         except:
             raise
             # raise AttributeError( "Unrecognised Object attribute '%s' in __getattr__!" % key )
@@ -671,10 +697,11 @@ class ImageObject( Object ):
 
 
     def checkSwapImage( self, image ):
-        if not image:
+        currentImage = self.getImage()
+
+        if not image or image is currentImage:
             return False
 
-        currentImage = self.getImage()
         self.swapImage( image )
         swapped = True
 
@@ -719,9 +746,10 @@ class Box( Object ):
 
     def getSurface( self ):
         surface = Object.getSurface( self )
-
         surface = surface.convert_alpha()
-        rect = pygame.Rect( 1, 1, self.width - 2, self.height - 2 )
+        width = self.getWidth()
+        height = self.getHeight()
+        rect = pygame.Rect( 1, 1, width - 2, height - 2 )
         surface.fill( BLACK_ALPHA, rect )
 
         return surface
@@ -908,7 +936,7 @@ class DynamicObject( ImageObject ):
         return imageToSwap
 
 
-    def checkUpdateObjectDirection( self ):
+    def checkUpdateObjectImage( self ):
         # Flip the player image if changed direction.
         horizontalMovement = self.movementStyle.moving( 'horizontal' )
         verticalMovement = self.movementStyle.moving( 'vertical' )
@@ -933,17 +961,29 @@ class DynamicObject( ImageObject ):
         self.movementStyle.stopMovement( **kwArgs )
 
 
+    def debugCollisionEvent( self, event, label = '' ):
+        import game
+
+        collisionPoint = event.point
+        print "%sself %s collides in curPos with %s at %s" % ( label, event.obj1.name, event.obj2.name, collisionPoint )
+
+        currentGame = game.Game.currentGame
+        currentGame.setPaused()
+        gameMap = currentGame.gameMap
+        gameMap.debugPos( 'collisionPoint', collisionPoint )
+
+
     def move( self ):
         if not self.canMove:
             return
 
         newPos = self.movementStyle.move( self.pos )
-        # self.checkUpdateObjectDirection()
-        # print( newPos )
 
         if newPos != self.pos:
-            self.pos = newPos
+            self.setPos( newPos )
             self.steps += 1
+            # Updating the object image for the direction is another move, which needs collision detection.
+            self.checkUpdateObjectImage()
 
 
     def update( self, camera = ORIGIN, offset = ORIGIN, gameOverMode = False, invulnerableMode = False ):
@@ -955,7 +995,6 @@ class DynamicObject( ImageObject ):
                 offset = Point( 0, - self.getBounceAmount() )
 
             Object.update( self, camera, offset )
-            self.checkUpdateObjectDirection()
 
             if invulnerableMode:
                 self.setVisible( True )

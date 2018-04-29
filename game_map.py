@@ -15,14 +15,14 @@ DEFAULT_BACKGROUND_COLOUR = (211, 211, 211)
 
 
 
-def createInteractionEvent( obj1, obj2 ):
+def createInteractionEvent( obj1, obj2, interactionPoint ):
     # print "Creating interaction event %s <-> %s" % ( obj1, obj2 )
-    return pygame.event.Event( INTERACTION_EVENT, obj1=obj1, obj2=obj2 )
+    return pygame.event.Event( INTERACTION_EVENT, obj1=obj1, obj2=obj2, point=interactionPoint )
 
 
-def createCollisionEvent( obj1, obj2 ):
+def createCollisionEvent( obj1, obj2, collisionPoint ):
     # print "Creating collision event %s <-> %s" % ( obj1, obj2 )
-    return pygame.event.Event( COLLISION_EVENT, obj1=obj1, obj2=obj2 )
+    return pygame.event.Event( COLLISION_EVENT, obj1=obj1, obj2=obj2, point=collisionPoint )
 
 
 def createClickCollisionEvent( obj, pos ):
@@ -131,6 +131,8 @@ class ObjectStore( object ):
         self.drawList.append( obj )
         obj.setScene( scene )
 
+        return obj
+
 
     # Removes the object from the ObjectStore but does not delete it.
     def removeObject( self, obj ):
@@ -158,6 +160,15 @@ class ObjectStore( object ):
             return objLists[objType]
         else:
             return []
+
+
+    def getNamedObject( self, name ):
+        for objList in self.objectLists.values():
+            for obj in objList:
+                if obj.name == name:
+                    return obj
+
+        return None
 
 
     def update( self, camera, updateOrder = None ):
@@ -250,11 +261,16 @@ class ObjectStore( object ):
             objList = objLists[objType]
 
             for obj in objList:
-                if testObj.collidesWith( obj ):
-                    event = createCollisionEvent( testObj, obj )
+                collisionPoint = testObj.collidesWith( obj )
+
+                if collisionPoint:
+                    event = createCollisionEvent( testObj, obj, collisionPoint )
                     break
-                elif testObj.interactsWith( obj ):
-                    event = createInteractionEvent( testObj, obj )
+                else:
+                    interactionPoint = testObj.interactsWith( obj )
+
+                    if interactionPoint:
+                        event = createInteractionEvent( testObj, obj, interactionPoint )
 
             if event and event.type == COLLISION_EVENT:
                 break
@@ -318,7 +334,7 @@ class Scene( ObjectStore ):
 
 
     def addObject( self, obj ):
-        ObjectStore.addObject( self, obj, scene=self )
+        return ObjectStore.addObject( self, obj, scene=self )
 
 
     def isScene( self, scene ):
@@ -372,6 +388,7 @@ class Map( object ):
         self.scene = None
         self.images = None
         self.drawOrder = None
+        self.paused = False
 
 
     def setImageStore( self, images ):
@@ -384,6 +401,10 @@ class Map( object ):
 
     def setDrawOrder( self, drawOrder ):
         self.drawOrder = drawOrder
+
+
+    def setPaused( self, paused = True ):
+        self.paused = paused
 
 
     def createScene( self, name, backGroundColour ):
@@ -424,6 +445,8 @@ class Map( object ):
 
         if hasattr( obj, 'move' ):
             self.movingObjects.append( obj )
+
+        return obj
 
 
     def addOverlay( self, obj ):
@@ -481,6 +504,9 @@ class Map( object ):
         # self.players.move()
         # self.sprites.move()
         for moveObj in self.movingObjects:
+            if self.paused:
+                break
+
             moveObj.move()
 
 
@@ -491,6 +517,19 @@ class Map( object ):
         # self.sprites.draw( viewPort, objTypes )
         # self.players.draw( viewPort, objTypes )
         self.overlays.draw( viewPort )
+
+
+    def debugPos( self, name, pos, **kwArgs ):
+        posBox = self.overlays.getNamedObject( name )
+
+        if not posBox:
+            import game_objects
+
+            kwArgs['size'] = kwArgs.get( 'size', 4 )
+            kwArgs['name'] = name
+            posBox = self.overlays.addObject( game_objects.Box( pos, **kwArgs ) )
+
+        posBox.pos = pos
 
 
     def __getattr__( self, key ):

@@ -18,6 +18,7 @@ DEFAULT_FPS = 30 # frames per second to update the screen
 class Game( object ):
     currentGame = None
 
+
     def __init__( self, name, iconName, viewPort ):
         # Set up the game state variables.
         print( "Initialising game engine..." )
@@ -71,8 +72,14 @@ class Game( object ):
         sys.exit()
 
 
+    def setPaused( self, paused = True ):
+        self.paused = paused
+        self.gameMap.setPaused( paused )
+
+
     def togglePaused( self ):
         self.paused = not self.paused
+        self.gameMap.setPaused( self.paused )
 
 
     def setGameMap( self, gameMap ):
@@ -145,7 +152,8 @@ class Game( object ):
     # Update the state of the game.
     def updateState( self ):
         # Move the sprites and other dynamic objects.
-        self.gameMap.move()
+        if not self.paused:
+            self.gameMap.move()
 
 
     # Update the positions of all the map objects according to the camera and new positions.
@@ -177,14 +185,12 @@ class Game( object ):
 
 
     def run( self ):
+        self.draw()
+
         # Main game loop.
         while self.running:
-            if not self.paused:
-                self.draw()
-
+            self.update()
+            self.draw()
             self.processEvents()
-
-            if not self.paused:
-                self.update()
 
             self.fpsClock.tick( DEFAULT_FPS )

@@ -185,11 +185,9 @@ class CollisionBoundary( Boundary ):
     def collides( self, moveObject, newPos ):
         # Temporarily move to new position to check for collision.
         moveObject.pushPos( newPos )
-        moveObject.updateRect()
         event = moveObject.collidesWithScene()
         self.setEvent( event )
         moveObject.popPos()
-        moveObject.updateRect()
 
         return event
 
@@ -220,9 +218,7 @@ class CollisionBoundary( Boundary ):
                     if event and event.type == COLLISION_EVENT:
                         # Accept newPos if current pos is already colliding.
                         # nudge = UnitPoint( offsetPos )
-                        # print "moveObject %s collides in curPos with %s" % ( moveObject.name, event.obj2.name )
-                        # import game
-                        # game.Game.currentGame.togglePaused()
+                        # self.debugCollisionEvent( event )
                         # newPos = curPos
                         newPos = origNewPos
                         self.resetBlocked()
@@ -414,11 +410,11 @@ class RandomWalkMovementStyle( GeneralMovementStyle ):
         GeneralMovementStyle.__init__( self, **kwArgs )
 
 
-    def decideMovement( self ):
+    def decideMovement( self, multiplier = 1 ):
         rand = random.random()
 
-        if rand < 0.05:
-            if rand < 0.04:
+        if rand < 0.05 * multiplier:
+            if rand < 0.04 * multiplier:
                 direction = random.choice( DIRECTION_LIST )
                 self.setMovement( direction )
             else:
@@ -437,16 +433,24 @@ class RandomWalkMovementStyle( GeneralMovementStyle ):
         if boundaryStyle.getBlockedHorizontally():
             rand = random.random()
 
-            if rand < 0.6:
-                self.reverseMovement( 'vertical' )
+            if rand < 0.2:
+                self.reverseMovement( 'horizontal' )
+            elif rand > 0.8:
+                self.setMovement( 'up' )
+            elif rand > 0.9:
+                self.setMovement( 'down' )
             else:
                 self.stopMovement( 'horizontal' )
 
         if boundaryStyle.getBlockedVertically():
             rand = random.random()
 
-            if rand < 0.6:
-                self.reverseMovement( 'horizontal' )
+            if rand < 0.2:
+                self.reverseMovement( 'vertical' )
+            elif rand > 0.8:
+                self.setMovement( 'left' )
+            elif rand > 0.9:
+                self.setMovement( 'right' )
             else:
                 self.stopMovement( 'vertical' )
 

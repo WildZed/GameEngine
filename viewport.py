@@ -46,7 +46,7 @@ class ViewPort( object ):
     def sdrawPos( surface, pos, colour = BLACK ):
         rect = Rectangle( pos - 20, pos + 20 )
         points = rect.asTupleTuple()
-        pygame.draw.lines( surface, self.colour, True, points )
+        pygame.draw.lines( surface, colour, True, points )
 
 
     def __init__( self, width, height, topLeft = None ):
@@ -56,7 +56,7 @@ class ViewPort( object ):
         self.halfHeight = int( height / 2 )
         self.backGroundColour = DEFAULT_BACKGROUND_COLOUR
         # Camera is the top left of where the camera view is.
-        self.camera = Point()
+        self.camera = Point( 0, 0 )
         self.cameraMovementStyle = None
 
         if topLeft:
@@ -70,7 +70,7 @@ class ViewPort( object ):
 
 
     def resetCamera( self ):
-        camera = Point()
+        camera = Point( 0, 0  )
 
 
     def adjustCamera( self, pos ):
@@ -166,15 +166,15 @@ class ViewPort( object ):
 
 
     def drawRect( self, rect, **kwArgs ):
-        ViewPort.drawBox( self.displaySurface, rect, **kwArgs )
+        ViewPort.sdrawRect( self.displaySurface, rect, **kwArgs )
 
 
     def drawBox( self, rect, **kwArgs ):
-        ViewPort.drawBox( self.displaySurface, rect, **kwArgs )
+        ViewPort.sdrawBox( self.displaySurface, rect, **kwArgs )
 
 
     def drawPos( self, pos, **kwArgs ):
-        ViewPort.drawPos( self.displaySurface, pos, **kwArgs )
+        ViewPort.sdrawPos( self.displaySurface, pos, **kwArgs )
 
 
     # Does the point collide with a colour other than the background colour.

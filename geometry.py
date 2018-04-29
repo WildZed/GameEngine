@@ -14,12 +14,16 @@ class Point( object ):
         elif posOrX.__class__.__name__ is 'Point':
             self.x = posOrX.x
             self.y = posOrX.y
-        elif posOrX:
+        elif type( posOrX ) is tuple:
             self.x = posOrX[0]
             self.y = posOrX[1]
         else:
-            self.x = 0
-            self.y = 0
+            self.x = posOrX
+            self.y = posOrX
+
+
+    def isValid( self ):
+        return self.x is not None and self.y is not None
 
 
     def __add__( self, pointOrNum ):
@@ -183,4 +187,4 @@ class Vector( Point ):
 
 # Constants:
 
-ORIGIN = Point()
+ORIGIN = Point( 0, 0 )
