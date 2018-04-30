@@ -231,54 +231,54 @@ class CollisionBoundary( Boundary ):
         self.resetBlocked()
         event = self.collides( moveObject, newPos )
 
+        if not event:
+            return newPos
+
+        curPos = moveObject.getPos()
+        offsetPos = newPos - curPos
+
+        # First try to go up tight to the obstacle.
+        testPos = curPos + offsetPos / 2
+        event = self.collides( moveObject, testPos )
+
+        if not event:
+            return testPos
+
+        testPos = curPos + offsetPos / 3
+        event = self.collides( moveObject, testPos )
+
+        if not event:
+            return testPos
+
+        testPos = curPos + UnitPoint( offsetPos )
+        event = self.collides( moveObject, testPos )
+
+        if not event:
+            return testPos
+
+        # Now check offset x and y separately.
+        self.setBlockedVertically()
+        testPos = curPos + Point( offsetPos.x, 0 )
+        event = self.collides( moveObject, testPos )
+
+        if not event:
+            return testPos
+
+        self.setBlockedHorizontally()
+        testPos = curPos + Point( 0, offsetPos.y )
+        event = self.collides( moveObject, testPos )
+
         if event:
-            curPos = moveObject.getPos()
-            origNewPos = newPos
-            offsetPos = origNewPos - curPos
+            if self.collidesWithSubSetFromCurrentPosition( moveObject, curPos, testPos ):
+                # Accept newPos if current pos is already colliding.
+                # But not with things that it should never collide with.
+                self.resetBlocked()
+            else:
+                testPos = curPos
+        else:
+            self.setBlockedVertically( False )
 
-            # First try to go up tight to the obstacle.
-            # newPos = self.getTightPoint( event, curPos, offsetPos )
-            # event = self.collides( moveObject, newPos )
-
-            if event:
-                # Now check offset x and y separately.
-                self.setBlockedVertically()
-                newPos = curPos + Point( offsetPos.x, 0 )
-                event = self.collides( moveObject, newPos )
-
-                if event:
-                    self.setBlockedHorizontally()
-                    newPos = curPos + Point( 0, offsetPos.y )
-                    event = self.collides( moveObject, newPos )
-
-                    if event:
-                        if self.collidesWithSubSetFromCurrentPosition( moveObject, curPos, newPos ):
-                            # Accept newPos if current pos is already colliding.
-                            # But not with things that it should never collide with.
-                            # nudge = UnitPoint( offsetPos )
-                            # moveObject.debugCollisionEvent( event )
-                            # newPos = curPos
-                            newPos = origNewPos
-                            self.resetBlocked()
-                        else:
-                            newPos = curPos
-
-                        # event = self.collides( moveObject, curPos )
-                        #
-                        # if event:
-                        #     # Accept newPos if current pos is already colliding.
-                        #     # But not with things that it should never collide with.
-                        #     # nudge = UnitPoint( offsetPos )
-                        #     # self.debugCollisionEvent( event )
-                        #     # newPos = curPos
-                        #     newPos = origNewPos
-                        #     self.resetBlocked()
-                        # else:
-                        #     newPos = curPos
-                    else:
-                        self.setBlockedVertically( False )
-
-        return newPos
+        return testPos
 
 
 

@@ -87,6 +87,42 @@ class Point( object ):
         return self
 
 
+    def __div__( self, pointOrNum ):
+        point = Point( self )
+        point /= pointOrNum
+
+        return point
+
+
+    def __idiv__( self, pointOrNum ):
+        if isinstance( pointOrNum, Point ):
+            self.x /= pointOrNum.x
+            self.y /= pointOrNum.y
+        else:
+            self.x /= pointOrNum
+            self.y /= pointOrNum
+
+        return self
+
+
+    def __mul__( self, pointOrNum ):
+        point = Point( self )
+        point *= pointOrNum
+
+        return point
+
+
+    def __imul__( self, pointOrNum ):
+        if isinstance( pointOrNum, Point ):
+            self.x *= pointOrNum.x
+            self.y *= pointOrNum.y
+        else:
+            self.x *= pointOrNum
+            self.y *= pointOrNum
+
+        return self
+
+
     def __eq__( self, point ):
         return self.x == point.x and self.y == point.y
 
