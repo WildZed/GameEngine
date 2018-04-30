@@ -52,6 +52,14 @@ class Data( object ):
 
 
 
+class OverlapData( object ):
+    def __init__( self, offset, rect ):
+        self.offset = offset
+        self.rect = rect
+
+
+
+
 # A generic game object.
 class Object( object ):
     # Constants.
@@ -292,6 +300,18 @@ class Object( object ):
         return pygame.Rect( offSetPos.x, offSetPos.y, self.width, self.height )
 
 
+    def getOffSetOtherRect( self, rect, offset = ORIGIN ):
+        offSetPos = self.getOffSetPos( offset )
+
+        return pygame.Rect( rect.left + offSetPos.x, rect.top + offSetPos.y, rect.width, rect.height )
+
+
+    def getOffSetRectangle( self, offset = ORIGIN ):
+        offsetPos = self.getOffSetPos( offset )
+
+        return Rectangle( ul=offsetPos, width=self.width, height=self.height )
+
+
     def getRelativeOffset( self, obj ):
         selfPos = self.getOffSetPos()
         objPos = obj.getOffSetPos()
@@ -385,7 +405,7 @@ class Object( object ):
         return self.getOffSetRect( offset )
 
 
-    def getSceneCollisions( self, pos ):
+    def getSceneCollisions( self ):
         if not self.scene:
             return []
 
@@ -463,7 +483,7 @@ class Object( object ):
         interactionPoint = None
 
         if self.canInteract( obj ):
-            interactionPoint = self.collidesWithColour( obj, useInteractionMask=True )
+            interactionPoint = self.interactsWithColour( obj )
 
         # print "interacts %s" % interacts
 
@@ -471,12 +491,12 @@ class Object( object ):
 
 
     def collidesWith( self, obj ):
-        collisionPoint = None
+        overlapData = None
 
         if self.canCollide( obj ):
-            collisionPoint = self.collidesWithColour( obj )
+            overlapData = self.collidesWithColour( obj )
 
-        return collisionPoint
+        return overlapData
 
 
     def collidesWithRect( self, obj ):
@@ -490,38 +510,56 @@ class Object( object ):
 
     def collidesWithInteractionMask( self, obj ):
         offset = self.getRelativeOffset( obj )
-        overlapPoint = self.interactionMask.overlap( obj.interactionMask, offset.asTuple() )
+        overlapOffset = self.interactionMask.overlap( obj.interactionMask, offset.asTuple() )
 
-        return overlapPoint
+        if overlapOffset:
+            overlapOffset = Point( overlapOffset )
+
+        return overlapOffset
 
 
     def collidesWithCollisionMask( self, obj ):
-        offset = self.getRelativeOffset( obj )
-        overlapPoint = self.collisionMask.overlap( obj.collisionMask, offset.asTuple() )
+        offset = self.getRelativeOffset( obj ).asTuple()
+        overlapOffset = self.collisionMask.overlap( obj.collisionMask, offset )
+        overlapData = None
 
-        if overlapPoint:
-            overlapPoint = self.getOffSetPos() + Point( overlapPoint )
+        if overlapOffset:
+            overlapOffset = Point( overlapOffset ) # self.getOffSetPos() +
+            overlapMask = self.collisionMask.overlap_mask( obj.collisionMask, offset )
+            overlapRects = overlapMask.get_bounding_rects()
+            numOverlapRects = len( overlapRects )
+            # print( overlapMask )
+            # print( overlapOffset )
+            # print( overlapRects )
+
+            # Unfortunately get_bounding_rects() doesn't aways work.
+            if numOverlapRects > 0:
+                overlapRect = overlapRects[0]
+            else:
+                # print( 'Mask.get_bounding_rects() failed to return overlapping rectangles!' )
+                overlapRect = pygame.Rect( overlapOffset.x, overlapOffset.y, 1, 1 )
+
+            if numOverlapRects > 1:
+                overlapRect.unionall( overlapRects[1:] )
+
+            overlapData = OverlapData( overlapOffset, overlapRect )
 
         # print "collidesWithRect %s" % collides
 
-        # numOverlapPixels = self.collisionMask.overlap_area( obj.collisionMask, offset.asTuple() )
+        # numOverlapPixels = self.collisionMask.overlap_area( obj.collisionMask, offset )
         #  = ( numOverlapPixels > 0 )
 
-        return overlapPoint
+        return overlapData
+
+
+    def interactsWithColour( self, obj ):
+        return self.collidesWithInteractionMask( obj )
 
 
     def collidesWithColour( self, obj, useInteractionMask = False ):
         # Rect is now only used for drawing, not collision. It is not guaranteed to be in the right place.
         # collides = self.collidesWithRect( obj )
-        # overlapPoint = None
-
-        # if collides:
-        if useInteractionMask:
-            overlapPoint = self.collidesWithInteractionMask( obj )
-        else:
-            overlapPoint = self.collidesWithCollisionMask( obj )
-
-        return overlapPoint
+        return self.collidesWithCollisionMask( obj )
 
 
     # Ask if the given world coordinate position collides with the object's full or collision rectangle.

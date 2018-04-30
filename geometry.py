@@ -26,6 +26,27 @@ class Point( object ):
         return self.x is not None and self.y is not None
 
 
+    # Shrink a Point as an offset by the given amount.
+    def shrinkBy( self, x, y ):
+        if self.x > 0:
+            if self.x > x:
+                self.x -= x
+            else:
+                self.x = 0
+        elif self.x < 0:
+            if self.x < -x:
+                self.x += x
+
+        if self.y > 0:
+            if self.y > y:
+                self.y -= y
+            else:
+                self.y = 0
+        elif self.y < 0:
+            if self.y < -y:
+                self.y += y
+
+
     def __add__( self, pointOrNum ):
         point = Point( self )
         point += pointOrNum
@@ -105,16 +126,40 @@ class UnitPoint( Point ):
 
 
 class Rectangle( object ):
-    def __init__( self, rectOrll = None, ur = None ):
-        if rectOrll is None:
-            self.ll = Point( 0, 0 )
-            self.ur = Point( 0, 0 )
-        elif ur is None:
+    def __init__( self, rectOrll = None, ur = None, ul = None, width = None, height = None ):
+        if type( rectOrll ) is Rectangle:
             self.ll = copy.copy( rectOrll.ll )
             self.ur = copy.copy( rectOrll.ur )
-        else:
-            self.ll = copy.copy( rectOrll )
+        elif type( rectOrll ) is Point:
+            if type( ur ) is Point:
+                self.ll = copy.copy( rectOrll )
+                self.ur = copy.copy( ur )
+            else:
+                self.ll = copy.copy( rectOrll )
+                self.ur = copy.copy( rectOrll )
+
+                if width and height:
+                    self.ur += Point( width, height )
+        elif type( ur ) is Point:
+            self.ll = copy.copy( ur )
             self.ur = copy.copy( ur )
+
+            if width and height:
+                self.ur -= Point( width, height )
+        elif type( ul ) is Point:
+            self.ll = copy.copy( ul )
+            self.ur = copy.copy( ul )
+
+            if width and height:
+                self.ll -= Point( 0, height )
+                self.ur += Point( width, 0 )
+        else:
+            self.ll = Point()
+            self.ur = Point()
+
+
+    def isValid( self ):
+        return self.ll.isValid() and self.ur.isValid()
 
 
     def boundPoint( self, pos ):
@@ -131,6 +176,47 @@ class Rectangle( object ):
             pos.y = self.ur.y
 
         return pos
+
+
+    def encloseRectangle( self, rect ):
+        rect = Rectangle( rect )
+
+        if self.ll.x < rect.ll.x:
+            rect.ll.x = self.ll.x
+
+        if self.ll.y < rect.ll.y:
+            rect.ll.y = self.ll.y
+
+        if self.ur.x > rect.ur.x:
+            rect.ur.x = self.ur.x
+
+        if self.ur.y > rect.ur.y:
+            rect.ur.y = self.ur.y
+
+        return rect
+
+
+    def collapse( self, direction, coord = None ):
+        if 'left' == direction:
+            if coord is None:
+                coord = self.ll.x
+
+            self.ur.x = coord
+        elif 'right' == direction:
+            if coord is None:
+                coord = self.ur.x
+
+            self.ll.x = coord
+        elif 'top' == direction:
+            if coord is None:
+                coord = self.ur.y
+
+            self.ll.y = coord
+        elif 'bottom' == direction:
+            if coord is None:
+                coord = self.ll.y
+
+            self.ur.y = coord
 
 
     def __getattr__( self, key ):

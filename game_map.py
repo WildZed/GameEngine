@@ -15,14 +15,19 @@ DEFAULT_BACKGROUND_COLOUR = (211, 211, 211)
 
 
 
-def createInteractionEvent( obj1, obj2, interactionPoint ):
+def createInteractionEvent( obj1, obj2, interactionOffset ):
     # print "Creating interaction event %s <-> %s" % ( obj1, obj2 )
-    return pygame.event.Event( INTERACTION_EVENT, obj1=obj1, obj2=obj2, point=interactionPoint )
+    point = obj1.getOffSetPos( interactionOffset )
+
+    return pygame.event.Event( INTERACTION_EVENT, obj1=obj1, obj2=obj2, offset=interactionOffset, point=point )
 
 
-def createCollisionEvent( obj1, obj2, collisionPoint ):
+def createCollisionEvent( obj1, obj2, collisionOverlapData ):
     # print "Creating collision event %s <-> %s" % ( obj1, obj2 )
-    return pygame.event.Event( COLLISION_EVENT, obj1=obj1, obj2=obj2, point=collisionPoint )
+    point = obj1.getOffSetPos( collisionOverlapData.offset )
+    rect = obj1.getOffSetOtherRect( collisionOverlapData.rect, collisionOverlapData.offset )
+
+    return pygame.event.Event( COLLISION_EVENT, obj1=obj1, obj2=obj2, overlapData=collisionOverlapData, point=point, rect=rect )
 
 
 def createClickCollisionEvent( obj, pos ):
@@ -267,10 +272,10 @@ class ObjectStore( object ):
                     event = createCollisionEvent( testObj, obj, collisionPoint )
                     break
                 else:
-                    interactionPoint = testObj.interactsWith( obj )
+                    interactionOffset = testObj.interactsWith( obj )
 
-                    if interactionPoint:
-                        event = createInteractionEvent( testObj, obj, interactionPoint )
+                    if interactionOffset:
+                        event = createInteractionEvent( testObj, obj, interactionOffset )
 
             if event and event.type == COLLISION_EVENT:
                 break
