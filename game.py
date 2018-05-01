@@ -175,9 +175,6 @@ class Game( object ):
         viewPort = self.viewPort
         gameMap = self.gameMap
 
-        # Draw the background.
-        viewPort.drawBackGround( gameMap.backGroundColour )
-
         # Draw all the map objects.
         gameMap.draw( viewPort )
 

@@ -52,7 +52,7 @@ class Data( object ):
 
 
 
-class OverlapData( object ):
+class CollisionData( object ):
     def __init__( self, offset, rect ):
         self.offset = offset
         self.rect = rect
@@ -491,12 +491,12 @@ class Object( object ):
 
 
     def collidesWith( self, obj ):
-        overlapData = None
+        collisionData = None
 
         if self.canCollide( obj ):
-            overlapData = self.collidesWithColour( obj )
+            collisionData = self.collidesWithColour( obj )
 
-        return overlapData
+        return collisionData
 
 
     def collidesWithRect( self, obj ):
@@ -518,38 +518,44 @@ class Object( object ):
         return overlapOffset
 
 
+    def getMaskRect( self, mask, offset = ORIGIN ):
+        rects = mask.get_bounding_rects()
+        numRects = len( rects )
+
+        # Unfortunately get_bounding_rects() doesn't aways work.
+        if numRects > 0:
+            maskRect = rects[0]
+
+            if numRects > 1:
+                maskRect.unionall( rects[1:] )
+
+            maskRect.move_ip( offset.x, offset.y )
+        else:
+            # print( 'Mask.get_bounding_rects() failed to return overlapping rectangles!' )
+            width, height = mask.get_size()
+            maskRect = pygame.Rect( offset.x, offset.y, width, height )
+
+        return maskRect
+
+
+
     def collidesWithCollisionMask( self, obj ):
         offset = self.getRelativeOffset( obj ).asTuple()
         overlapOffset = self.collisionMask.overlap( obj.collisionMask, offset )
-        overlapData = None
+        collisionData = None
 
         if overlapOffset:
             overlapOffset = Point( overlapOffset ) # self.getOffSetPos() +
             overlapMask = self.collisionMask.overlap_mask( obj.collisionMask, offset )
-            overlapRects = overlapMask.get_bounding_rects()
-            numOverlapRects = len( overlapRects )
-            # print( overlapMask )
-            # print( overlapOffset )
-            # print( overlapRects )
-
-            # Unfortunately get_bounding_rects() doesn't aways work.
-            if numOverlapRects > 0:
-                overlapRect = overlapRects[0]
-            else:
-                # print( 'Mask.get_bounding_rects() failed to return overlapping rectangles!' )
-                overlapRect = pygame.Rect( overlapOffset.x, overlapOffset.y, 1, 1 )
-
-            if numOverlapRects > 1:
-                overlapRect.unionall( overlapRects[1:] )
-
-            overlapData = OverlapData( overlapOffset, overlapRect )
+            overlapRect = self.getMaskRect( overlapMask, overlapOffset )
+            collisionData = CollisionData( overlapOffset, overlapRect )
 
         # print "collidesWithRect %s" % collides
 
         # numOverlapPixels = self.collisionMask.overlap_area( obj.collisionMask, offset )
         #  = ( numOverlapPixels > 0 )
 
-        return overlapData
+        return collisionData
 
 
     def interactsWithColour( self, obj ):
@@ -817,6 +823,15 @@ class BackGround( ImageObject ):
 
 
 
+class SoftBackGround( ImageObject ):
+    def __init__( self, pos, image, **kwArgs ):
+        self.mergeNonInteractingKwArgs( kwArgs )
+        self.mergeKwArg( 'drawOrder', 0, kwArgs )
+        ImageObject.__init__( self, pos, image, **kwArgs )
+
+
+
+
 class Fog( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
         self.mergeKwArg( 'objectProperties', InteractionType.FOG, kwArgs )
@@ -830,6 +845,7 @@ class Fog( ImageObject ):
 
 class Shop( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
+        self.mergeKwArg( 'drawOrder', 2, kwArgs )
         ImageObject.__init__( self, pos, image, **kwArgs )
 
 
@@ -838,14 +854,18 @@ class Shop( ImageObject ):
 class Digspot( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
         self.mergeOverlayKwArgs( kwArgs )
+        self.mergeKwArg( 'drawOrder', 2, kwArgs )
         ImageObject.__init__( self, pos, image, **kwArgs )
 
         self.digCount = 0
 
 
 
+
 class Bush( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
+        # Objects with the same draw order will go behind each other based on the y coordinate.
+        # self.mergeKwArg( 'drawOrder', 2, kwArgs )
         ImageObject.__init__( self, pos, image, **kwArgs )
 
 
@@ -854,6 +874,7 @@ class Bush( ImageObject ):
 class Arrow( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
         self.mergeOverlayKwArgs( kwArgs )
+        self.mergeKwArg( 'drawOrder', 2, kwArgs )
         ImageObject.__init__( self, pos, image, **kwArgs )
 
 
@@ -908,6 +929,7 @@ class StaticText( Text ):
 class DebugText( StaticText ):
     def __init__( self, pos, text, **kwArgs ):
         StaticText.__init__( self, pos, text, **kwArgs )
+
 
 
 

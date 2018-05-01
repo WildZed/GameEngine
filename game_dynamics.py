@@ -159,17 +159,31 @@ class Boundary( object ):
         return newPos
 
 
+    def collidesWithRect( self, rect ):
+        return False
+
+
 
 
 # Bound positions by rectangular area.
 class RectangleBoundary( Boundary ):
-    def __init__( self, rect ):
+    def __init__( self, rect, grow = 0 ):
         Boundary.__init__( self )
         self.rect = rect
+
+        if grow:
+            rect.top -= grow
+            rect.bottom += grow
+            rect.left -= grow
+            rect.right += grow
 
 
     def getBoundedPosition( self, moveObject, newPos ):
         return self.rect.boundPoint( newPos )
+
+
+    def collidesWithRect( self, rect ):
+        return not self.rect.colliderect( rect )
 
 
 
@@ -215,8 +229,8 @@ class CollisionBoundary( Boundary ):
 
 
     def getTightPoint( self, event, curPos, offsetPos ):
-        overlapData = event.overlapData
-        overlapRect = overlapData.rect
+        collisionData = event.collisionData
+        overlapRect = collisionData.rect
         overlapWidth = overlapRect.width
         overlapHeight = overlapRect.height
 

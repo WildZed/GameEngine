@@ -182,7 +182,7 @@ class ViewPort( object ):
         collides = ( 0 > pos.x or pos.x >= self.width ) or ( 0 > pos.y or pos.y >= self.height )
 
         if collides:
-            return True
+            return False
 
         # Use the object's bounding rectangle to filter the position, if provided.
         # Convert point to world (object) coordinates.

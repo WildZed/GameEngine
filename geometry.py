@@ -1,7 +1,7 @@
 # Monkey-Rabbit Games
 # Geometry
 
-import copy
+import copy, pygame
 
 
 
@@ -164,6 +164,9 @@ class UnitPoint( Point ):
 class Rectangle( object ):
     def __init__( self, rectOrll = None, ur = None, ul = None, width = None, height = None ):
         if type( rectOrll ) is Rectangle:
+            self.ll = Point( rectOrll.left, rectOrll.bottom )
+            self.ur = Point( rectOrll.right, rectOrll.top )
+        elif type( rectOrll ) is pygame.Rect:
             self.ll = copy.copy( rectOrll.ll )
             self.ur = copy.copy( rectOrll.ur )
         elif type( rectOrll ) is Point:

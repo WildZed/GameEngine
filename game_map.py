@@ -2,6 +2,7 @@
 # Game Engine
 
 import pygame, copy
+import game_objects
 from pygame.locals import *
 from geometry import *
 from game_constants import *
@@ -22,12 +23,12 @@ def createInteractionEvent( obj1, obj2, interactionOffset ):
     return pygame.event.Event( INTERACTION_EVENT, obj1=obj1, obj2=obj2, offset=interactionOffset, point=point )
 
 
-def createCollisionEvent( obj1, obj2, collisionOverlapData ):
+def createCollisionEvent( obj1, obj2, collisionData ):
     # print "Creating collision event %s <-> %s" % ( obj1, obj2 )
-    point = obj1.getOffSetPos( collisionOverlapData.offset )
-    rect = obj1.getOffSetOtherRect( collisionOverlapData.rect, collisionOverlapData.offset )
+    point = obj1.getOffSetPos( collisionData.offset )
+    rect = obj1.getOffSetOtherRect( collisionData.rect, collisionData.offset )
 
-    return pygame.event.Event( COLLISION_EVENT, obj1=obj1, obj2=obj2, overlapData=collisionOverlapData, point=point, rect=rect )
+    return pygame.event.Event( COLLISION_EVENT, obj1=obj1, obj2=obj2, collisionData=collisionData, point=point, rect=rect )
 
 
 def createClickCollisionEvent( obj, pos ):
@@ -87,7 +88,7 @@ class ObjectDrawSortKey:
 
 
     def __lt__( self, other ):
-        return self.obj.drawOrder < other.obj.drawOrder or ( self.obj.drawOrder == other.obj.drawOrder and self.obj.colRect.bottom < other.obj.colRect.bottom )
+        return self.obj.drawOrder < other.obj.drawOrder or ( self.obj.drawOrder == other.obj.drawOrder and self.obj.colRect.centery < other.obj.colRect.centery )
 
 
     def __eq__( self, other ):
@@ -95,7 +96,7 @@ class ObjectDrawSortKey:
 
 
     def __gt__( self, other ):
-        return self.obj.drawOrder > other.obj.drawOrder or ( self.obj.drawOrder == other.obj.drawOrder and self.obj.colRect.bottom > other.obj.colRect.bottom )
+        return self.obj.drawOrder > other.obj.drawOrder or ( self.obj.drawOrder == other.obj.drawOrder and self.obj.colRect.centery > other.obj.colRect.centery )
 
 
     def __le__( self, other ):
@@ -227,9 +228,10 @@ class ObjectStore( object ):
 
     def draw( self, viewPort, debugDraw = False ):
         drawList = self.getSortedDrawList()
+        surface = viewPort.displaySurface
 
         for obj in drawList:
-            obj.draw( viewPort.displaySurface )
+            obj.draw( surface )
 
 
     def drawByObjectTypeOrder( self, viewPort, objTypes = None, debugDraw = False ):
@@ -266,10 +268,10 @@ class ObjectStore( object ):
             objList = objLists[objType]
 
             for obj in objList:
-                collisionPoint = testObj.collidesWith( obj )
+                collisionData = testObj.collidesWith( obj )
 
-                if collisionPoint:
-                    event = createCollisionEvent( testObj, obj, collisionPoint )
+                if collisionData:
+                    event = createCollisionEvent( testObj, obj, collisionData )
                     break
                 else:
                     interactionOffset = testObj.interactsWith( obj )
@@ -320,9 +322,11 @@ class ObjectStore( object ):
 
 
 class Scene( ObjectStore ):
-    def __init__( self, parentMap, name, backGroundColour ):
+    def __init__( self, parentMap, name, backGroundColour = DEFAULT_BACKGROUND_COLOUR, boundaryStyle = None ):
         self.name = name
         self.backGroundColour = backGroundColour
+        self.boundaryStyle = boundaryStyle
+
         ObjectStore.__init__( self, parentMap )
 
 
@@ -331,7 +335,7 @@ class Scene( ObjectStore ):
 
 
     def getBackGroundColour( self ):
-        return backGroundColour
+        return self.backGroundColour
 
 
     def setBackGroundColour( self, colour ):
@@ -355,30 +359,25 @@ class Scene( ObjectStore ):
         scene.addObject( obj )
 
 
-    # def collides( self, testObj ):
-    #     event = self.parentMap.collides( testObj )
-    #
-    #     if not event or event.type != COLLISION_EVENT:
-    #         newEvent = ObjectStore.collides( self, testObj )
-    #
-    #         if not event or ( newEvent and newEvent.type == COLLISION_EVENT ):
-    #             event = newEvent
-    #
-    #     return event
-    #
-    #
-    # def collidesWithPoint( self, pos ):
-    #     event = self.parentMap.collidesWithPoint( pos )
-    #
-    #     if not event:
-    #         event = ObjectStore.collidesWithPoint( self, pos )
-    #
-    #     return event
-    #
-    #
-    # def getAllCollisions( self, testObj ):
-    #     collisions = self.parentMap.getAllCollisions( testObj )
-    #     collisions.extend( ObjectStore.getAllCollisions( self, testObj ) )
+    def draw( self, viewPort ):
+        # Draw the background.
+        viewPort.drawBackGround( self.backGroundColour )
+
+        ObjectStore.draw( self, viewPort )
+
+
+    def collides( self, testObj ):
+        event = ObjectStore.collides( self, testObj )
+
+        if not event and self.boundaryStyle:
+            rect = testObj.getMaskRect( testObj.collisionMask, testObj.getOffSetPos() )
+            collides = self.boundaryStyle.collidesWithRect( rect )
+
+            if collides:
+                collisionData = game_objects.CollisionData( Point( rect.left, rect.top ), rect )
+                event = createCollisionEvent( testObj, self.boundaryStyle, collisionData )
+
+        return event
 
 
 
@@ -412,8 +411,8 @@ class Map( object ):
         self.paused = paused
 
 
-    def createScene( self, name, backGroundColour ):
-        self.scenes[name] = scene = Scene( self, name, backGroundColour )
+    def createScene( self, name, **kwArgs ):
+        self.scenes[name] = scene = Scene( self, name, **kwArgs )
 
         if not self.scene:
             self.scene = scene
@@ -518,6 +517,7 @@ class Map( object ):
 
     def draw( self, viewPort ):
         self.ensureScene()
+
         self.scene.draw( viewPort )
         # self.sprites.draw( viewPort, objTypes )
         # self.players.draw( viewPort, objTypes )
