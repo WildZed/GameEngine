@@ -870,6 +870,13 @@ class Bush( ImageObject ):
 
 
 
+# A door or portal.
+class Portal( ImageObject ):
+    def __init__( self, pos, image, **kwArgs ):
+        ImageObject.__init__( self, pos, image, **kwArgs )
+
+
+
 
 class Arrow( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
