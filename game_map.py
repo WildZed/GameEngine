@@ -285,7 +285,7 @@ class ObjectStore( object ):
         return event
 
 
-    def collidesWithPoint( self, pos ):
+    def collidesWithPoint( self, pos, useFullRect = False ):
         event = None
         objLists = self.objectLists
         objTypes = objLists.keys()
@@ -294,7 +294,7 @@ class ObjectStore( object ):
             objList = objLists[objType]
 
             for obj in objList:
-                if obj.collidesWithPoint( pos ):
+                if obj.collidesWithPoint( pos, useFullRect=useFullRect ):
                     event = createClickCollisionEvent( obj, pos )
                     break
 

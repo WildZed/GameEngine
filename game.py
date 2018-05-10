@@ -6,6 +6,8 @@ import game_map
 from pygame.locals import *
 from geometry import *
 from game_utils import fontCache
+from game_constants import *
+from game_objects import *
 
 
 # Constants.
@@ -29,6 +31,7 @@ class Game( object ):
 
         self.viewPort = viewPort
         self.clickDragLimit = 10
+        self.allowDrag = True
         self.fpsClock = pygame.time.Clock()
         self.updateOrder = None
         print( "Loading images..." )
@@ -48,8 +51,11 @@ class Game( object ):
         self.running = True
         self.paused = False
         self.clickPos = None
+        self.clackPos = None
         self.dragPos = None
+        self.dragObject = None
         self.gameMap = game_map.Map()
+        self.cameraMovement = False
 
         print( "Initialising map..." )
         self.initMap()
@@ -70,6 +76,10 @@ class Game( object ):
     def terminate( self ):
         pygame.quit()
         sys.exit()
+
+
+    def setAllowDrag( self, allowDrag = True ):
+        self.allowDrag = allowDrag
 
 
     def setPaused( self, paused = True ):
@@ -112,11 +122,78 @@ class Game( object ):
             self.processEvent( event )
 
 
+    # Remember mouse button down.
+    def setClickPos( self, event ):
+        self.clickPos = Point( event.pos )
+
+
+    # Remember mouse button down.
+    def setDragPos( self, event ):
+        self.dragPos = Point( event.pos )
+
+
+    # Remember mouse button up.
+    def checkSetClackPosAndSendEvent( self, event ):
+        clackPos = Point( event.pos )
+        self.clackPos = None
+        self.dragObject = None
+
+        # If clickPos nearby event.pos.
+        if self.clickPos and self.viewPort.positionNear( clackPos, self.clickPos, self.clickDragLimit ):
+            viewPort = self.viewPort
+            gameMap = self.gameMap
+            scene = gameMap.getScene()
+
+            if scene:
+                worldClickPos = viewPort.getWorldCoordinate( self.clickPos )
+                event = scene.collidesWithPoint( worldClickPos, useFullRect=True )
+                viewPort.postEvent( event )
+        else:
+            self.clackPos = clackPos
+
+
+    def checkSetDragObject( self ):
+        self.dragObject = None
+
+        if not self.allowDrag:
+            return
+
+        gameMap = self.gameMap
+        scene = gameMap.getScene()
+
+        if not scene:
+            return
+
+        viewPort = self.viewPort
+        worldClickPos = viewPort.getWorldCoordinate( self.clickPos )
+        event = scene.collidesWithPoint( worldClickPos, useFullRect=True )
+
+        if event and issubclass( type( event.obj ), ( DynamicObject, Portal ) ):
+            # print( "Dragging..." )
+            self.dragObject = event.obj
+
+
     # Generic game event processing.
     def processEvent( self, event ):
+        viewPort = self.viewPort
+        gameMap = self.gameMap
+        player = gameMap.player
+
         if event.type == QUIT:
             self.terminate()
             self.running = False
+        elif KEYDOWN == event.type:
+            if K_c == event.key:
+                if player:
+                    player.stopMovement()
+
+                self.cameraMovement = True
+
+            if self.cameraMovement:
+                viewPort.setCameraMovement( key=event.key )
+            elif player:
+                # Check if the key moves the player in a given direction.
+                player.setMovement( key=event.key )
         elif KEYUP == event.type:
             if K_ESCAPE == event.key:
                 self.terminate()
@@ -128,25 +205,29 @@ class Game( object ):
                 viewport.ViewPort.toggleDebugDraw()
             elif K_PAUSE == event.key:
                 self.togglePaused()
+            elif K_c == event.key:
+                self.cameraMovement = False
+                viewPort.stopCameraMovement()
+
+            if self.cameraMovement:
+                viewPort.stopCameraMovement( key=event.key )
+            elif player:
+                # Check if the key stops the player in a given direction.
+                player.stopMovement( key=event.key )
         elif MOUSEBUTTONDOWN == event.type:
-            # Remember position.
-            self.clickPos = Point( event.pos )
+            # Remember mouse down position.
+            self.setClickPos( event )
+            self.checkSetDragObject()
         elif MOUSEBUTTONUP == event.type:
-            # If clickPos nearby event.pos.
-            dragPos = Point( event.pos )
-            self.dragPos = None
-
-            if self.clickPos and self.viewPort.positionNear( dragPos, self.clickPos, self.clickDragLimit ):
-                viewPort = self.viewPort
-                gameMap = self.gameMap
-                scene = gameMap.getScene()
-
-                if scene:
-                    clickPos = viewPort.getWorldCoordinate( self.clickPos )
-                    event = scene.collidesWithPoint( clickPos )
-                    viewPort.postEvent( event )
-            else:
-                self.dragPos = dragPos
+            self.checkSetClackPosAndSendEvent( event )
+        elif MOUSEMOTION == event.type:
+            self.setDragPos( event )
+        # elif event.type == INTERACTION_EVENT:
+        #     print( "Interaction event %s <-> %s" % ( event.obj1, event.obj2 ) )
+        # elif event.type == COLLISION_EVENT:
+        #     print( "Collision event %s <-> %s" % ( event.obj1, event.obj2 ) )
+        # elif event.type == CLICK_COLLISION_EVENT:
+        #     print( "Click collision event %s <-> %s" % ( event.obj, event.pos ) )
 
 
     # Update the state of the game.
@@ -154,6 +235,17 @@ class Game( object ):
         # Move the sprites and other dynamic objects.
         if not self.paused:
             self.gameMap.move()
+
+        viewPort = self.viewPort
+        gameMap = self.gameMap
+        player = gameMap.player
+
+        # Adjust camera if beyond the "camera slack".
+        if self.cameraMovement:
+            viewPort.moveCamera()
+        elif player and not self.areDraggingObject():
+            playerCentre = player.getCentre()
+            viewPort.adjustCamera( playerCentre )
 
 
     # Update the positions of all the map objects according to the camera and new positions.
@@ -165,10 +257,36 @@ class Game( object ):
         gameMap.update( viewPort.camera, updateOrder=self.updateOrder )
 
 
+    def areDraggingObject( self ):
+        return self.dragObject and self.dragPos
+
+
+    def updateDragObject( self ):
+        if not self.areDraggingObject():
+            return
+
+        viewPort = self.viewPort
+        worldPos = viewPort.getWorldCoordinate( self.dragPos )
+        dragObject = self.dragObject
+        dragObject.setPos( worldPos )
+        objectCentre = dragObject.getCentre()
+
+        if viewPort.adjustCamera( objectCentre ):
+            adjustedViewPortPos = viewPort.getViewPortCoordinate( dragObject.getPos() )
+            relativePos = self.dragPos - adjustedViewPortPos
+            # print( 'Relative drag pos %s' % relativePos )
+            relativePos *= 95
+            relativePos /= 100
+            # print( 'Adjusted relative drag pos %s' % relativePos )
+            newMousePos = adjustedViewPortPos + relativePos
+            pygame.mouse.set_pos( newMousePos.asTuple() )
+
+
     # Update the game state, map and player.
     def update( self ):
         self.updateState()
         self.updateMap()
+        self.updateDragObject()
 
 
     def draw( self ):

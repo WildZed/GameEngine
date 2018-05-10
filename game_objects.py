@@ -82,11 +82,12 @@ class Object( object ):
         self.posStack = []
         self.size = kwArgs.get( 'size', Object.DEFAULT_OBJECT_SIZE )
         self.ratio = kwArgs.get( 'ratio', 1.0 )
-        # Default position style of 'top_left' in world coordinates is the same as '',
+        # Default position style of 'centre' in world coordinates is the same as '',
         # but '' indicates that no override position style has been passed in.
         # Styles: 'top_left', 'centre', 'relative_top_left', 'relative_centre',
         #         'viewport_top_left', 'viewport_centre'
         self.positionStyle = kwArgs.get( 'positionStyle', '' )
+        # print( '%s: positionStyle = %s' % ( self.__class__, self.positionStyle ) )
         self.colour = kwArgs.get( 'colour', BLACK )
         # self.mirrorV = kwArgs.get( 'mirrorV', False )
         # self.mirrorH = kwArgs.get( 'mirrorH', False )
@@ -288,7 +289,7 @@ class Object( object ):
     def getOffSetPos( self, offset = ORIGIN ):
         offset = self.pos + offset
 
-        if self.positionStyle[-6:] == 'centre':
+        if self.positionStyle[-8:] != 'top_left':
             offset -= Point( self.width / 2, self.height / 2 )
 
         return offset
@@ -328,7 +329,7 @@ class Object( object ):
         obj.parent = self
 
         if obj.positionStyle == '':
-            obj.positionStyle = 'relative_top_left'
+            obj.positionStyle = 'relative_centre'
 
         return obj
 
@@ -874,6 +875,20 @@ class Bush( ImageObject ):
 class Portal( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
         ImageObject.__init__( self, pos, image, **kwArgs )
+
+
+    # Override getCollisionRect() from Object.
+    def getCollisionRect( self, rect ):
+        # Use a smaller collision rectangle that represents the player's feet.
+        colRect = colRect = rect.copy()
+        # Collision rect from feet to a quarter height.
+        colRect.top = colRect.top + ( ( colRect.height * 3 ) / 4 )
+        colRect.height = colRect.height / 4
+        # Collision rect thinner than the image width by a quarter on each side.
+        # colRect.left = colRect.left + ( colRect.width / 4 )
+        # colRect.width = colRect.width / 2
+
+        return colRect
 
 
 

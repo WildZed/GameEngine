@@ -6,6 +6,12 @@ import copy, pygame
 
 
 
+def intDivTowardsZero( n, d ):
+    return -(-n // d) if n < 0 else n // d
+
+
+
+
 class Point( object ):
     def __init__( self, posOrX = None, y = None ):
         if y is not None:
@@ -95,12 +101,13 @@ class Point( object ):
 
 
     def __idiv__( self, pointOrNum ):
+        # a//b if a*b>0 else (a+(-a%b))//b
         if isinstance( pointOrNum, Point ):
-            self.x /= pointOrNum.x
-            self.y /= pointOrNum.y
+            self.x = intDivTowardsZero( self.x, pointOrNum.x )
+            self.y = intDivTowardsZero( self.y, pointOrNum.y )
         else:
-            self.x /= pointOrNum
-            self.y /= pointOrNum
+            self.x = intDivTowardsZero( self.x, pointOrNum )
+            self.y = intDivTowardsZero( self.y, pointOrNum )
 
         return self
 

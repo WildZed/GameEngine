@@ -219,7 +219,10 @@ class CollisionBoundary( Boundary ):
 
         if len( newCollisions ) <= len( curCollisions ):
             for curCollision in curCollisions:
-                newCollisions.remove( curCollision )
+                try:
+                    newCollisions.remove( curCollision )
+                except:
+                    pass
 
             collidesWithSubSet = ( 0 == len( newCollisions ) )
         else:

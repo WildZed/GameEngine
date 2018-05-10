@@ -12,7 +12,7 @@ from game_constants import *
 
 DEFAULT_BACKGROUND_COLOUR = WHITE
 # How far from the center the player moves before moving the camera.
-CAMERASLACK = 90
+DEFAULT_CAMERASLACK = 90
 
 
 
@@ -57,6 +57,7 @@ class ViewPort( object ):
         self.backGroundColour = DEFAULT_BACKGROUND_COLOUR
         # Camera is the top left of where the camera view is.
         self.camera = Point( 0, 0 )
+        self.cameraSlack = DEFAULT_CAMERASLACK
         self.cameraMovementStyle = None
 
         if topLeft:
@@ -69,25 +70,37 @@ class ViewPort( object ):
         fontCache.addFont( 'small', 'freesansbold', 22 )
 
 
+    def setCameraSlack( self, cameraSlack = DEFAULT_CAMERASLACK ):
+        self.cameraSlack = cameraSlack
+
+
     def resetCamera( self ):
         camera = Point( 0, 0  )
 
 
     def adjustCamera( self, pos ):
         camera = self.camera
+        cameraSlack = self.cameraSlack
+        adjusted = False
 
         # print "Camera %s" % camera
         # print "Pos %s" % pos
 
-        if ( ( camera.x + self.halfWidth ) - pos.x ) > CAMERASLACK:
-            camera.x = pos.x + CAMERASLACK - self.halfWidth
-        elif ( pos.x - ( camera.x + self.halfWidth ) ) > CAMERASLACK:
-            camera.x = pos.x - CAMERASLACK - self.halfWidth
+        if ( ( camera.x + self.halfWidth ) - pos.x ) > cameraSlack:
+            camera.x = pos.x + cameraSlack - self.halfWidth
+            adjusted = True
+        elif ( pos.x - ( camera.x + self.halfWidth ) ) > cameraSlack:
+            camera.x = pos.x - cameraSlack - self.halfWidth
+            adjusted = True
 
-        if ( ( camera.y + self.halfHeight ) - pos.y ) > CAMERASLACK:
-            camera.y = pos.y + CAMERASLACK - self.halfHeight
-        elif ( pos.y - ( camera.y + self.halfHeight ) ) > CAMERASLACK:
-            camera.y = pos.y - CAMERASLACK - self.halfHeight
+        if ( ( camera.y + self.halfHeight ) - pos.y ) > cameraSlack:
+            camera.y = pos.y + cameraSlack - self.halfHeight
+            adjusted = True
+        elif ( pos.y - ( camera.y + self.halfHeight ) ) > cameraSlack:
+            camera.y = pos.y - cameraSlack - self.halfHeight
+            adjusted = True
+
+        return adjusted
 
 
     def setCameraMovementStyle( self, cameraMovementStyle ):
@@ -111,6 +124,10 @@ class ViewPort( object ):
 
     def getWorldCoordinate( self, pos ):
         return pos + self.camera
+
+
+    def getViewPortCoordinate( self, pos ):
+        return pos - self.camera
 
 
     def positionNear( self, pos, oldPos, distance ):
