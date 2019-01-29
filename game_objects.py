@@ -35,7 +35,7 @@ class Data( object ):
     def __getattr__( self, key ):
         data = self.__dict__['_data']
 
-        if key == '_data' or not data.has_key( key ) :
+        if key == '_data' or key not in data:
             raise AttributeError( "Unrecognised image attribute '%s' in __getattr__!" % key )
 
         val = data[key]
@@ -167,7 +167,7 @@ class Object( object ):
     # Insert the supplied keyword unless set from the constructor.
     def mergeKwArg( self, key, value, kwArgs ):
         kwArgs[key] = kwArgs.get( key, value )
-        # print "mergeKwArg %s %s" % ( key, kwArgs[key] )
+        # print( "mergeKwArg %s %s" % ( key, kwArgs[key] ) )
 
 
     def mergeOverlayKwArgs( self, kwArgs ):
@@ -441,7 +441,7 @@ class Object( object ):
         else:
             nameB = None
 
-        # print "Checking iteraction/collision selfType %s objType %s objTypePlusNameA %s objTypePlusNameB %s" % ( selfType, objType, objTypePlusNameA, objTypePlusNameB )
+        # print( "Checking iteraction/collision selfType %s objType %s objTypePlusNameA %s objTypePlusNameB %s" % ( selfType, objType, objTypePlusNameA, objTypePlusNameB ) )
 
         isPair = False
 
@@ -457,26 +457,26 @@ class Object( object ):
 
     def canInteract( self, obj ):
         # if self.objectProperties == InteractionType.GHOST or obj.objectProperties == InteractionType.GHOST:
-        #     print "self.objectProperties %d" % self.objectProperties
-        #     print "obj.objectProperties %d" % obj.objectProperties
-        #     print "self.interactionTypes %d" % self.interactionTypes
-        #     print "obj.interactionTypes %d" % obj.interactionTypes
+        #     print( "self.objectProperties %d" % self.objectProperties )
+        #     print( "obj.objectProperties %d" % obj.objectProperties )
+        #     print( "self.interactionTypes %d" % self.interactionTypes )
+        #     print( "obj.interactionTypes %d" % obj.interactionTypes )
 
         # if self.__class__.__name__ == 'Player' and obj.__class__.__name__ == 'GhostSprite' and self.collidesWithRect( obj ):
-        #     print "Checking interaction for %s and %s" % ( self.__class__.__name__, obj.__class__.__name__ )
-        #     print "self.objectProperties %d" % self.objectProperties
-        #     print "obj.interactionTypes %d" % obj.interactionTypes
-        #     print "canInteract %s" % ( self.objectProperties & obj.interactionTypes )
+        #     print( "Checking interaction for %s and %s" % ( self.__class__.__name__, obj.__class__.__name__ ) )
+        #     print( "self.objectProperties %d" % self.objectProperties )
+        #     print( "obj.interactionTypes %d" % obj.interactionTypes )
+        #     print( "canInteract %s" % ( self.objectProperties & obj.interactionTypes ) )
 
         return self != obj and self.enabled and obj.enabled and self.interactionTypes & obj.objectProperties
 
 
     def canCollide( self, obj ):
         # if self.objectProperties == InteractionType.IMPERVIOUS or obj.objectProperties == InteractionType.IMPERVIOUS:
-        #     print "self.objectProperties %d" % self.objectProperties
-        #     print "obj.objectProperties %d" % obj.objectProperties
-        #     print "self.collisionTypes %d" % self.collisionTypes
-        #     print "obj.collisionTypes %d" % obj.collisionTypes
+        #     print( "self.objectProperties %d" % self.objectProperties )
+        #     print( "obj.objectProperties %d" % obj.objectProperties )
+        #     print( "self.collisionTypes %d" % self.collisionTypes )
+        #     print( "obj.collisionTypes %d" % obj.collisionTypes )
         return self != obj and self.enabled and obj.enabled and self.collisionTypes & obj.objectProperties
 
 
@@ -486,7 +486,7 @@ class Object( object ):
         if self.canInteract( obj ):
             interactionPoint = self.interactsWithColour( obj )
 
-        # print "interacts %s" % interacts
+        # print( "interacts %s" % interacts )
 
         return interactionPoint
 
@@ -551,7 +551,7 @@ class Object( object ):
             overlapRect = self.getMaskRect( overlapMask, overlapOffset )
             collisionData = CollisionData( overlapOffset, overlapRect )
 
-        # print "collidesWithRect %s" % collides
+        # print( "collidesWithRect %s" % collides )
 
         # numOverlapPixels = self.collisionMask.overlap_area( obj.collisionMask, offset )
         #  = ( numOverlapPixels > 0 )
@@ -578,8 +578,8 @@ class Object( object ):
 
         collides = ( rect.left <= pos.x and pos.x <= rect.right ) and ( rect.top <= pos.y and pos.y <= rect.bottom )
 
-        # print "collidesWithPoint %s %s %s" % ( pos, rect, collides )
-        # print "rect l %s r %s t %s b %s" % ( rect.left, rect.right, rect.top, rect.bottom )
+        # print( "collidesWithPoint %s %s %s" % ( pos, rect, collides ) )
+        # print( "rect l %s r %s t %s b %s" % ( rect.left, rect.right, rect.top, rect.bottom ) )
 
         return collides
 
@@ -687,9 +687,10 @@ class Object( object ):
                 return selfDict['pos'].y
 
             value = selfDict[key]
+        except KeyError:
+            raise AttributeError( "Unrecognised Object attribute '%s' in __getattr__!" % key )
         except:
             raise
-            # raise AttributeError( "Unrecognised Object attribute '%s' in __getattr__!" % key )
 
         return value
 
@@ -725,8 +726,8 @@ class ImageObject( Object ):
 
 
     def getSurface( self ):
-        width = self.getWidth()
-        height = self.getHeight()
+        width = int( self.getWidth() )
+        height = int( self.getHeight() )
         surface = pygame.transform.scale( self.image, ( width, height ) )
 
         return surface
@@ -764,7 +765,7 @@ class ImageObject( Object ):
         image = self.image
         ratio = float( image.get_height() ) / float( image.get_width() )
 
-        if kwArgs.has_key( 'ratio' ):
+        if 'ratio' in kwArgs:
             modRatio = kwArgs['ratio']
 
             if modRatio:
@@ -809,7 +810,7 @@ class Border( ImageObject ):
         self.mergeKwArg( 'collisionTypes', InteractionType.IMPERVIOUS | InteractionType.SOLID | InteractionType.OVERLAY | InteractionType.GHOST, kwArgs )
         self.mergeKwArg( 'drawOrder', 0, kwArgs )
         ImageObject.__init__( self, pos, image, **kwArgs )
-        # print "self.objectProperties %d" % self.objectProperties
+        # print( "self.objectProperties %d" % self.objectProperties )
 
 
 
@@ -1047,7 +1048,7 @@ class DynamicObject( ImageObject ):
         import game
 
         collisionPoint = event.point
-        print "%sself %s collides in curPos with %s at %s" % ( label, event.obj1.name, event.obj2.name, collisionPoint )
+        print( "%sself %s collides in curPos with %s at %s" % ( label, event.obj1.name, event.obj2.name, collisionPoint ) )
 
         currentGame = game.Game.currentGame
         currentGame.setPaused()

@@ -17,14 +17,14 @@ DEFAULT_BACKGROUND_COLOUR = (211, 211, 211)
 
 
 def createInteractionEvent( obj1, obj2, interactionOffset ):
-    # print "Creating interaction event %s <-> %s" % ( obj1, obj2 )
+    # print( "Creating interaction event %s <-> %s" % ( obj1, obj2 ) )
     point = obj1.getOffSetPos( interactionOffset )
 
     return pygame.event.Event( INTERACTION_EVENT, obj1=obj1, obj2=obj2, offset=interactionOffset, point=point )
 
 
 def createCollisionEvent( obj1, obj2, collisionData ):
-    # print "Creating collision event %s <-> %s" % ( obj1, obj2 )
+    # print( "Creating collision event %s <-> %s" % ( obj1, obj2 ) )
     point = obj1.getOffSetPos( collisionData.offset )
     rect = obj1.getOffSetOtherRect( collisionData.rect, collisionData.offset )
 
@@ -32,7 +32,7 @@ def createCollisionEvent( obj1, obj2, collisionData ):
 
 
 def createClickCollisionEvent( obj, pos ):
-    # print "Creating click collision event %s <-> %s" % ( obj, pos )
+    # print( "Creating click collision event %s <-> %s" % ( obj, pos ) )
     return pygame.event.Event( CLICK_COLLISION_EVENT, obj=obj, pos=pos )
 
 
@@ -128,7 +128,7 @@ class ObjectStore( object ):
         objType = obj.__class__.__name__
         objLists = self.objectLists
 
-        if objLists.has_key( objType ):
+        if objType in objLists:
             objList = objLists[objType]
         else:
             objLists[objType] = objList = []
@@ -145,7 +145,7 @@ class ObjectStore( object ):
         objType = obj.__class__.__name__
         objLists = self.objectLists
 
-        if objLists.has_key( objType ):
+        if objType in objLists:
             objList = objLists[objType]
 
             objList.remove( obj )
@@ -155,14 +155,14 @@ class ObjectStore( object ):
     def deleteAllObjectsOfType( self, objType ):
         objLists = self.objectLists
 
-        if objLists.has_key( objType ):
+        if objType in objLists:
             del objLists[objType]
 
 
     def objectsOfType( self, objType ):
         objLists = self.objectLists
 
-        if objLists.has_key( objType ):
+        if objType in objLists:
             return objLists[objType]
         else:
             return []
@@ -185,7 +185,7 @@ class ObjectStore( object ):
             updateOrder = objLists.keys()
 
         for objType in updateOrder:
-            if not objLists.has_key( objType ):
+            if objType not in objLists:
                 continue
                 # raise  AttributeError( "No objects of type '%s' in map!" % objType )
 
@@ -248,7 +248,7 @@ class ObjectStore( object ):
             objTypes = objLists.keys()
 
         for objType in objTypes:
-            if not objLists.has_key( objType ):
+            if objType not in objLists:
                 continue
                 # raise  AttributeError( "No objects of type '%s' in map!" % objType )
 
@@ -552,7 +552,7 @@ class Map( object ):
         elif key == 'backGroundColour':
             return self.__dict__['scene'].backGroundColour
 
-        if not self.__dict__.has_key( key ) :
+        if key not in self.__dict__ :
             raise AttributeError( "Unrecognised Map attribute '%s' in __getattr__!" % key )
 
         val = self.__dict__[key]

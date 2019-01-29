@@ -88,7 +88,7 @@ class Directions( object ):
 
                 # Checking for other movement in the same axis.
                 for direction in Directions.AXES[axis]:
-                    if self.__dict__.has_key( direction ) and self.__dict__[direction]:
+                    if direction in self.__dict__ and self.__dict__[direction]:
                         axisValue = direction
                         break
 

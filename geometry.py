@@ -7,7 +7,7 @@ import copy, pygame
 
 
 def intDivTowardsZero( n, d ):
-    return -(-n // d) if n < 0 else n // d
+    return int( -(-n // d) if n < 0 else n // d )
 
 
 
@@ -93,14 +93,33 @@ class Point( object ):
         return self
 
 
-    def __div__( self, pointOrNum ):
+    def __truediv__( self, pointOrNum ):
         point = Point( self )
         point /= pointOrNum
 
         return point
 
 
-    def __idiv__( self, pointOrNum ):
+    def __itruediv__( self, pointOrNum ):
+        # a//b if a*b>0 else (a+(-a%b))//b
+        if isinstance( pointOrNum, Point ):
+            self.x = self.x / pointOrNum.x
+            self.y = self.y / pointOrNum.y
+        else:
+            self.x = self.x / pointOrNum
+            self.y = self.y / pointOrNum
+
+        return self
+
+
+    def __floordiv__( self, pointOrNum ):
+        point = Point( self )
+        point //= pointOrNum
+
+        return point
+
+
+    def __ifloordiv__( self, pointOrNum ):
         # a//b if a*b>0 else (a+(-a%b))//b
         if isinstance( pointOrNum, Point ):
             self.x = intDivTowardsZero( self.x, pointOrNum.x )
@@ -110,6 +129,15 @@ class Point( object ):
             self.y = intDivTowardsZero( self.y, pointOrNum )
 
         return self
+
+
+    def __div__( self, pointOrNum ):
+        point = Point( self )
+        return point.__ifloordiv__( pointOrNum )
+
+
+    def __idiv__( self, pointOrNum ):
+        return self.__ifloordiv__( pointOrNum )
 
 
     def __mul__( self, pointOrNum ):
@@ -143,7 +171,7 @@ class Point( object ):
 
 
     def asTuple( self ):
-        return ( self.x, self.y )
+        return ( int( self.x ), int( self.y ) )
 
 
     def manhattanDistance( self, point ):

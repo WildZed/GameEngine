@@ -41,7 +41,7 @@ def debugPrintMask( mask ):
             else:
                 line += ' '
 
-        print line
+        print( line )
 
 
 
