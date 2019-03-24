@@ -65,9 +65,18 @@ class ViewPort( object ):
 
         pygame.init()
 
-        self.displaySurface = pygame.display.set_mode( ( width, height ) )
+        size = ( width, height )
+        self.displaySurface = pygame.display.set_mode( size, HWSURFACE | DOUBLEBUF | RESIZABLE )
         fontCache.addFont( 'basic', 'freesansbold', 32 )
         fontCache.addFont( 'small', 'freesansbold', 22 )
+
+
+    def resize( self, width, height ):
+        self.width = width
+        self.height = height
+        size = ( width, height )
+        self.displaySurface = pygame.display.set_mode( size, HWSURFACE | DOUBLEBUF | RESIZABLE )
+        self.update()
 
 
     def setCameraSlack( self, cameraSlack = DEFAULT_CAMERASLACK ):
@@ -75,7 +84,7 @@ class ViewPort( object ):
 
 
     def resetCamera( self ):
-        camera = Point( 0, 0  )
+        self.camera = Point( 0, 0  )
 
 
     def adjustCamera( self, pos ):
@@ -139,6 +148,10 @@ class ViewPort( object ):
             isNear = True
 
         return isNear
+
+
+    def getViewportRect( self ):
+        return pygame.Rect( 0, 0, self.width, self.height )
 
 
     def getCameraRect( self ):
@@ -259,7 +272,8 @@ class ViewPort( object ):
 
 
     def update( self ):
-        pygame.display.update()
+        viewRect = self.getViewportRect()
+        pygame.display.update( viewRect )
 
 
     def playSound( self, soundFileName, ext = 'ogg', checkBusy = False, soundsDir = 'sounds' ):

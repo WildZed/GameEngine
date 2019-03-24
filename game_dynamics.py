@@ -39,6 +39,8 @@ class Directions( object ):
 
     def __init__( self ):
         self.reset()
+        self._horizontalFacing = 'left'
+        self._verticalFacing = 'down'
 
 
     def reset( self ):
@@ -56,11 +58,19 @@ class Directions( object ):
                 self.horizontal = 'right'
             elif self.horizontal == 'right':
                 self.horizontal = 'left'
+
+            self._horizontalFacing = self.horizontal
         elif direction == 'vertical':
             if self.vertical == 'up':
                 self.vertical = 'down'
             elif self.vertical == 'down':
                 self.vertical = 'up'
+
+            self._verticalFacing = self.vertical
+
+
+    def facing( self, direction = 'horizontal' ):
+        return direction and getattr( self, '_' + direction + 'Facing', None ) or None
 
 
     def __getattr__( self, key ):
@@ -83,6 +93,7 @@ class Directions( object ):
 
             if value:
                 axisValue = key
+                self.__dict__['_' + axis + 'Facing'] = axisValue
             else:
                 axisValue = False
 
@@ -138,6 +149,11 @@ class Boundary( object ):
         self.blockedVertically = val
 
 
+    def setBlocked( self, val = True ):
+        self.blockedHorizontally = val
+        self.blockedVertically = val
+
+
     def resetEvent( self ):
         self.event = None
 
@@ -168,18 +184,15 @@ class Boundary( object ):
 # Bound positions by rectangular area.
 class RectangleBoundary( Boundary ):
     def __init__( self, rect, grow = 0 ):
-        Boundary.__init__( self )
-        self.rect = rect
-
-        if grow:
-            rect.top -= grow
-            rect.bottom += grow
-            rect.left -= grow
-            rect.right += grow
+        super().__init__()
+        # PyGame Rect.
+        self.rect = rect.inflate( grow, grow )
 
 
     def getBoundedPosition( self, moveObject, newPos ):
-        return self.rect.boundPoint( newPos )
+        rect = Rectangle( self.rect )
+
+        return rect.boundPoint( newPos )
 
 
     def collidesWithRect( self, rect ):
@@ -191,7 +204,7 @@ class RectangleBoundary( Boundary ):
 # Bound object positions by collision with non-transparent part of other objects.
 class CollisionBoundary( Boundary ):
     def __init__( self, **kwArgs ):
-        Boundary.__init__( self )
+        super().__init__()
         self.collisionPointOffset = kwArgs.get( 'collisionPointOffset', None )
         self.resetBlocked()
 
@@ -274,26 +287,32 @@ class CollisionBoundary( Boundary ):
             return testPos
 
         # Now check offset x and y separately.
-        self.setBlockedVertically()
-        testPos = curPos + Point( offsetPos.x, 0 )
-        event = self.collides( moveObject, testPos )
+        if offsetPos.x:
+            horizontaltTestPos = curPos + Point( offsetPos.x, 0 )
+            event = self.collides( moveObject, horizontaltTestPos )
 
-        if not event:
-            return testPos
+            if not event:
+                self.setBlockedVertically()
+                # print( 'Allowed horizontal movement.' )
+                return horizontaltTestPos
 
-        self.setBlockedHorizontally()
-        testPos = curPos + Point( 0, offsetPos.y )
-        event = self.collides( moveObject, testPos )
+        if offsetPos.y:
+            verticalTestPos = curPos + Point( 0, offsetPos.y )
+            event = self.collides( moveObject, verticalTestPos )
 
-        if event:
-            if self.collidesWithSubSetFromCurrentPosition( moveObject, curPos, testPos ):
-                # Accept newPos if current pos is already colliding.
-                # But not with things that it should never collide with.
-                self.resetBlocked()
-            else:
-                testPos = curPos
+            if not event:
+                # print( 'Allowed vertical movement.' )
+                self.setBlockedHorizontally()
+                return verticalTestPos
+
+        self.setBlocked()
+
+        if self.collidesWithSubSetFromCurrentPosition( moveObject, curPos, testPos ):
+            # Accept newPos if current pos is already colliding.
+            # But not with things that it should never collide with.
+            self.resetBlocked()
         else:
-            self.setBlockedVertically( False )
+            testPos = curPos
 
         return testPos
 
@@ -327,7 +346,7 @@ class MovementStyle( object ):
 
 class GeneralMovementStyle( MovementStyle ):
     def __init__( self, moveRate = DEFAULT_MOVERATE, bounceRate = 0, bounceHeight = 0, boundaryStyle = None ):
-        MovementStyle.__init__( self )
+        super().__init__()
 
         self.moveBounds = None
         self.moveRate = moveRate
@@ -372,6 +391,10 @@ class GeneralMovementStyle( MovementStyle ):
 
     def moving( self, direction = 'any' ):
         return self.directions[direction]
+
+
+    def facing( self, direction = 'horizontal' ):
+        return self.directions.facing( direction )
 
 
     # No boundary for general movement.
@@ -433,7 +456,7 @@ class GeneralMovementStyle( MovementStyle ):
 # Move by key presses.
 class KeyMovementStyle( GeneralMovementStyle ):
     def __init__( self, **kwArgs ):
-        GeneralMovementStyle.__init__( self, **kwArgs )
+        super().__init__( **kwArgs )
 
         self.dirToKeysMap = DEFAULT_KEYSMAP
         self.allDirsToKeysMap = copy.copy( DEFAULT_KEYSMAP )
@@ -475,7 +498,7 @@ class KeyMovementStyle( GeneralMovementStyle ):
 # Move randomly bounded by collisions with colour that is not the background colour.
 class RandomWalkMovementStyle( GeneralMovementStyle ):
     def __init__( self, **kwArgs ):
-        GeneralMovementStyle.__init__( self, **kwArgs )
+        super().__init__( **kwArgs )
 
 
     def decideMovement( self, multiplier = 1 ):

@@ -1,6 +1,7 @@
 # Monkey-Rabbit Games
 # Game Utilities
 
+import sys
 import pygame
 
 
@@ -43,6 +44,9 @@ def debugPrintMask( mask ):
 
         print( line )
 
+
+def classByName( classname ):
+    return getattr( sys.modules[__name__], classname )
 
 
 fontCache = FontCache()

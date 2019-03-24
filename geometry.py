@@ -182,7 +182,7 @@ class Point( object ):
 
 class UnitPoint( Point ):
     def __init__( self, posOrX = None, y = None ):
-        Point.__init__( self, posOrX, y )
+        super().__init__( posOrX, y )
         self.x = self.unitCoord( self.x )
         self.y = self.unitCoord( self.y )
 

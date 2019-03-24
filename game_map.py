@@ -2,7 +2,8 @@
 # Game Engine
 
 import pygame, copy
-import game_objects
+import game_objects as go
+import game_utils as gu
 from pygame.locals import *
 from geometry import *
 from game_constants import *
@@ -117,6 +118,7 @@ class ObjectStore( object ):
     def __init__( self, parentMap ):
         self.parentMap = parentMap
         self.objectLists = {}
+        self._objectTypes = None
         self.drawList = []
 
 
@@ -125,13 +127,14 @@ class ObjectStore( object ):
 
 
     def addObject( self, obj, scene = None ):
-        objType = obj.__class__.__name__
+        objType = obj.__class__
         objLists = self.objectLists
 
         if objType in objLists:
             objList = objLists[objType]
         else:
             objLists[objType] = objList = []
+            self._objectTypes = None
 
         objList.append( obj )
         self.drawList.append( obj )
@@ -142,7 +145,7 @@ class ObjectStore( object ):
 
     # Removes the object from the ObjectStore but does not delete it.
     def removeObject( self, obj ):
-        objType = obj.__class__.__name__
+        objType = obj.__class__
         objLists = self.objectLists
 
         if objType in objLists:
@@ -157,6 +160,18 @@ class ObjectStore( object ):
 
         if objType in objLists:
             del objLists[objType]
+            self._objectTypes = None
+
+
+
+    def prioritisedObjectTypes( self ):
+        objectTypes = self._objectTypes
+
+        if not objectTypes:
+            objectTypes = list( self.objectLists.keys() )
+            objectTypes.sort( key=lambda objectType : objectType.pickPriority, reverse=True )
+
+        return objectTypes
 
 
     def objectsOfType( self, objType ):
@@ -168,13 +183,17 @@ class ObjectStore( object ):
             return []
 
 
-    def getNamedObject( self, name ):
+    def getObject( self, objOrName ):
         for objList in self.objectLists.values():
             for obj in objList:
-                if obj.name == name:
+                if isinstance( objOrName, str ):
+                    if obj.name == objOrName:
+                        return obj
+                elif obj == objOrName:
                     return obj
 
         return None
+
 
 
     def update( self, camera, updateOrder = None ):
@@ -229,14 +248,16 @@ class ObjectStore( object ):
     def draw( self, viewPort, debugDraw = False ):
         drawList = self.getSortedDrawList()
         surface = viewPort.displaySurface
+        viewRect = viewPort.getCameraRect()
 
         for obj in drawList:
-            obj.draw( surface )
+            obj.draw( surface, viewRect )
 
 
     def drawByObjectTypeOrder( self, viewPort, objTypes = None, debugDraw = False ):
         objLists = self.objectLists
         currentScene = self.parentMap.scene
+        viewRect = viewPort.getCameraRect()
 
         self.sortObjLists()
 
@@ -256,13 +277,13 @@ class ObjectStore( object ):
 
             for obj in objList:
                 if None == obj.scene or obj.scene == currentScene:
-                    obj.draw( viewPort.displaySurface )
+                    obj.draw( viewPort.displaySurface, viewRect )
 
 
     def collides( self, testObj ):
         event = None
         objLists = self.objectLists
-        objTypes = objLists.keys()
+        objTypes = self.prioritisedObjectTypes()
 
         for objType in objTypes:
             objList = objLists[objType]
@@ -288,7 +309,7 @@ class ObjectStore( object ):
     def collidesWithPoint( self, pos, useFullRect = False ):
         event = None
         objLists = self.objectLists
-        objTypes = objLists.keys()
+        objTypes = self.prioritisedObjectTypes()
 
         for objType in objTypes:
             objList = objLists[objType]
@@ -305,7 +326,7 @@ class ObjectStore( object ):
 
 
     def getAllCollisions( self, testObj ):
-        collisions = []
+        collisionEvents = []
         objLists = self.objectLists
         objTypes = objLists.keys()
 
@@ -314,20 +335,25 @@ class ObjectStore( object ):
 
             for obj in objList:
                 if testObj.collidesWith( obj ):
-                    collisions.append( obj )
+                    collisionEvents.append( obj )
 
-        return collisions
+        return collisionEvents
 
 
 
 
 class Scene( ObjectStore ):
+    @staticmethod
+    def isScene( scene ):
+        return scene.__class__ == Scene
+
+
     def __init__( self, parentMap, name, backGroundColour = DEFAULT_BACKGROUND_COLOUR, boundaryStyle = None ):
         self.name = name
         self.backGroundColour = backGroundColour
         self.boundaryStyle = boundaryStyle
 
-        ObjectStore.__init__( self, parentMap )
+        super().__init__( parentMap )
 
 
     def getName( self ):
@@ -346,13 +372,9 @@ class Scene( ObjectStore ):
         return ObjectStore.addObject( self, obj, scene=self )
 
 
-    def isScene( self, scene ):
-        return scene.__class__ == self.__class__
-
-
     # Called from Object only.
     def moveObjectToScene( self, obj, scene ):
-        if not self.isScene( scene ):
+        if not Scene.isScene( scene ):
             scene = self.parentMap.getScene( scene )
 
         self.removeObject( obj )
@@ -366,18 +388,32 @@ class Scene( ObjectStore ):
         ObjectStore.draw( self, viewPort )
 
 
-    def collides( self, testObj ):
-        event = ObjectStore.collides( self, testObj )
+    def collidesWithBoundary( self, testObj ):
+        collisionEvent = None
 
-        if not event and self.boundaryStyle:
+        if self.boundaryStyle:
             rect = testObj.getMaskRect( testObj.collisionMask, testObj.getOffSetPos() )
             collides = self.boundaryStyle.collidesWithRect( rect )
 
             if collides:
-                collisionData = game_objects.CollisionData( Point( rect.left, rect.top ), rect )
-                event = createCollisionEvent( testObj, self.boundaryStyle, collisionData )
+                collisionData = go.CollisionData( Point( rect.left, rect.top ), rect )
+                collisionEvent = createCollisionEvent( testObj, self.boundaryStyle, collisionData )
 
-        return event
+        return collisionEvent
+
+
+    def collides( self, testObj ):
+        return super().collides( testObj ) or self.collidesWithBoundary( testObj )
+
+
+    def getAllCollisions( self, testObj ):
+        collisionEvents = super().getAllCollisions( testObj )
+        boundaryCollisionEvent = self.collidesWithBoundary( testObj )
+
+        if boundaryCollisionEvent:
+            collisionEvents.append( boundaryCollisionEvent )
+
+        return collisionEvents
 
 
 
@@ -391,7 +427,7 @@ class Map( object ):
         self.overlays = ObjectStore( self )
         self.scene = None
         self.images = None
-        self.drawOrder = None
+        # self.drawOrder = None
         self.paused = False
 
 
@@ -399,12 +435,12 @@ class Map( object ):
         self.images = images
 
 
-    def getDrawOrder( self, drawOrder ):
-        return self.drawOrder
-
-
-    def setDrawOrder( self, drawOrder ):
-        self.drawOrder = drawOrder
+    # def getDrawOrder( self, drawOrder ):
+    #     return self.drawOrder
+    #
+    #
+    # def setDrawOrder( self, drawOrder ):
+    #     self.drawOrder = drawOrder
 
 
     def setPaused( self, paused = True ):
@@ -423,17 +459,17 @@ class Map( object ):
             self.scene = Scene( self, 'default', DEFAULT_BACKGROUND_COLOUR )
 
 
-    def getScene( self, name = None ):
-        if name:
-            scene = self.scenes[name]
+    def getScene( self, scene = None ):
+        if scene:
+            scene = Scene.isScene( scene ) and scene or self.scenes[scene]
         else:
             scene = self.scene
 
         return scene
 
 
-    def changeScene( self, name ):
-        newScene = self.getScene( name )
+    def changeScene( self, newScene ):
+        newScene = self.getScene( newScene )
 
         if newScene == self.scene:
             return False
@@ -525,14 +561,12 @@ class Map( object ):
 
 
     def debugPos( self, name, pos, **kwArgs ):
-        posBox = self.overlays.getNamedObject( name )
+        posBox = self.overlays.getObject( name )
 
         if not posBox:
-            import game_objects
-
             kwArgs['size'] = kwArgs.get( 'size', 4 )
             kwArgs['name'] = name
-            posBox = self.overlays.addObject( game_objects.Box( pos, **kwArgs ) )
+            posBox = self.overlays.addObject( go.Box( pos, **kwArgs ) )
 
         posBox.pos = pos
 
@@ -541,14 +575,14 @@ class Map( object ):
         self.ensureScene()
 
         if key == 'player':
-            # return self.__dict__['players'].objectLists['Player'][0]
+            # return self.__dict__['players'].objectLists[go.Player][0]
             # Need to check in all scenes for the player, or the movingObjects list.
-            return self.__dict__['scene'].objectLists['Player'][0]
+            return self.__dict__['scene'].objectLists[go.Player][0]
         elif key == 'sprites':
             # Currently just return sprites in the current scene, but it could gather from all scenes.
-            return self.__dict__['scene'].objectLists['Sprite']
+            return self.__dict__['scene'].objectLists[go.Sprite]
         elif key == 'score':
-            return self.__dict__['overlays'].objectLists['Score'][0]
+            return self.__dict__['overlays'].objectLists[go.Score][0]
         elif key == 'backGroundColour':
             return self.__dict__['scene'].backGroundColour
 

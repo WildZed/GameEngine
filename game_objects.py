@@ -52,6 +52,20 @@ class Data( object ):
 
 
 
+class CollisionSpecification( object ):
+    def __init__( self, width = 0.5, height = 0.25, top = None, bottom = None, left = 0.25, right = None ):
+        self.width = ( width is None or width > 1.0 ) and 1.0 or width
+        self.height = ( height is None or height > 1.0 ) and 1.0 or height
+        bottom = bottom is not None and ( bottom + self.height ) <= 1.0 and bottom or 0.0 # 0.0 default.
+        self.top = ( top is None or ( top + self.height ) > 1.0 ) and 1.0 - height - bottom or top
+        self.bottom = 1.0 - height - self.top # 0.0 default.
+        right = ( right is None or ( right + self.width ) > 1.0 ) and ( 1.0 - width ) / 2 or right # If left is not specified.
+        self.left = ( left is None or ( left + self.width ) > 1.0 ) and 1.0 - width - right or left
+        self.right = 1.0 - width - self.left
+
+
+
+
 class CollisionData( object ):
     def __init__( self, offset, rect ):
         self.offset = offset
@@ -60,10 +74,43 @@ class CollisionData( object ):
 
 
 
+class ImageAnimation( object ):
+    def __init__( self, images, speed = 5 ):
+        self._images = images
+        self._numImages = len( images )
+        self._index = 0
+        self._speed = 5
+        self._counter = 0
+
+
+    def advance( self ):
+        self._counter += 1
+
+        if self._counter >= self._speed:
+            self._counter = 0
+            self._index += 1
+
+            if self._index >= self._numImages:
+                self._index = 0
+
+
+    def getImage( self, advance = True ):
+        image = self._images[self._index]
+
+        if advance:
+            self.advance()
+
+        return image
+
+
+
+
 # A generic game object.
 class Object( object ):
     # Constants.
     DEFAULT_OBJECT_SIZE = 20
+
+    pickPriority = 2
 
 
     # Constructor.
@@ -94,9 +141,12 @@ class Object( object ):
         self.updateCallback = kwArgs.get( 'updateCallback', None )
         self.lifetime = kwArgs.get( 'lifetime', None )
 
-        # The position rectangle.
+        # The object's rectangle containing all of its shape.
         self.rect = None
+        # The collision rectangle in world coordinates.
         self.colRect = None
+        self._collisionSpecification = kwArgs.get( 'collisionSpecification', None )
+        # Viewport coordinate rectangle.
         self.vpRect = None
         # self.vpColRect = None
         self.attachedObjects = []
@@ -141,6 +191,10 @@ class Object( object ):
 
     def toggleEnabled( self ):
         self.enabled = not self.enabled
+
+
+    def getCentre( self ):
+        return Point( self.x + int( ( float( self.size ) + 0.5 ) / 2 ), self.y + int( ( float( self.size ) + 0.5 ) / 2 ) )
 
 
     def getScene( self ):
@@ -213,6 +267,10 @@ class Object( object ):
         self.setPos( self.posStack.pop() )
 
         return self.pos
+
+
+    def getCollisionRectCentre( self ):
+        return Point( self.colRect.center )
 
 
     def getWidth( self ):
@@ -395,8 +453,22 @@ class Object( object ):
 
 
     def getCollisionRect( self, rect ):
+        collisionSpec = self._collisionSpecification
+
         # The default collision rectangle is the same as the object's rectangle.
-        return rect
+        if not collisionSpec:
+            return rect
+
+        # Use a smaller collision rectangle that represents the player's feet.
+        colRect = colRect = rect.copy()
+        # Collision rect from feet to a quarter height.
+        colRect.top = int( colRect.top + ( colRect.height * collisionSpec.top ) )
+        colRect.height = int( colRect.height * collisionSpec.height )
+        # Collision rect thinner than the image width by a quarter on each side.
+        colRect.left = int( colRect.left + ( colRect.width * collisionSpec.left ) )
+        colRect.width = int( colRect.width * collisionSpec.width )
+
+        return colRect
 
 
     def getViewportRect( self, camera = ORIGIN, offset = ORIGIN ):
@@ -648,23 +720,25 @@ class Object( object ):
         posBox.lifetime = 80
 
 
-    def draw( self, surface ):
+    def draw( self, surface, viewRect ):
         if self.visible:
-            surface.blit( self.surface, self.vpRect )
-            viewPortCls = viewport.ViewPort
+            if viewRect.colliderect( self.rect ):
+                surface.blit( self.surface, self.vpRect )
 
-            if viewPortCls.debugDraw:
-                vpColRect = self.getCollisionRect( self.vpRect )
-                viewPortCls.sdrawBox( surface, self.vpRect, colour=self.colour )
-                viewPortCls.sdrawBox( surface, vpColRect, colour=self.colour )
-                surface.blit( self.collisionMaskSurface, self.vpRect )
+                viewPortCls = viewport.ViewPort
 
-            self.drawAttachedObjects( surface )
+                if viewPortCls.debugDraw:
+                    vpColRect = self.getCollisionRect( self.vpRect )
+                    viewPortCls.sdrawBox( surface, self.vpRect, colour=self.colour )
+                    viewPortCls.sdrawBox( surface, vpColRect, colour=self.colour )
+                    surface.blit( self.collisionMaskSurface, self.vpRect )
+
+            self.drawAttachedObjects( surface, viewRect )
 
 
-    def drawAttachedObjects( self, surface ):
+    def drawAttachedObjects( self, surface, viewRect ):
         for attachedObject in self.attachedObjects:
-            attachedObject.draw( surface )
+            attachedObject.draw( surface, viewRect )
 
 
     def __getattr__( self, key ):
@@ -722,7 +796,7 @@ class ImageObject( Object ):
 
         kwArgs['ratio'] = self.calculateRatio( **kwArgs )
 
-        Object.__init__( self, pos, **kwArgs )
+        super().__init__( pos, **kwArgs )
 
 
     def getSurface( self ):
@@ -787,7 +861,7 @@ class ImageObject( Object ):
 
 class Box( Object ):
     def __init__( self, pos, **kwArgs ):
-        Object.__init__( self, pos, **kwArgs )
+        super().__init__( pos, **kwArgs )
 
 
     def getSurface( self ):
@@ -809,7 +883,7 @@ class Border( ImageObject ):
         self.mergeKwArg( 'interactionTypes', InteractionType.NONE, kwArgs )
         self.mergeKwArg( 'collisionTypes', InteractionType.IMPERVIOUS | InteractionType.SOLID | InteractionType.OVERLAY | InteractionType.GHOST, kwArgs )
         self.mergeKwArg( 'drawOrder', 0, kwArgs )
-        ImageObject.__init__( self, pos, image, **kwArgs )
+        super().__init__( pos, image, **kwArgs )
         # print( "self.objectProperties %d" % self.objectProperties )
 
 
@@ -820,7 +894,7 @@ class BackGround( ImageObject ):
         self.mergeKwArg( 'objectProperties', InteractionType.HARD, kwArgs )
         self.mergeKwArg( 'interactionTypes', InteractionType.NONE, kwArgs )
         self.mergeKwArg( 'drawOrder', 0, kwArgs )
-        ImageObject.__init__( self, pos, image, **kwArgs )
+        super().__init__( pos, image, **kwArgs )
 
 
 
@@ -829,35 +903,41 @@ class SoftBackGround( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
         self.mergeNonInteractingKwArgs( kwArgs )
         self.mergeKwArg( 'drawOrder', 0, kwArgs )
-        ImageObject.__init__( self, pos, image, **kwArgs )
+        super().__init__( pos, image, **kwArgs )
 
 
 
 
 class Fog( ImageObject ):
+    pickPriority = 1
+
     def __init__( self, pos, image, **kwArgs ):
         self.mergeKwArg( 'objectProperties', InteractionType.FOG, kwArgs )
         self.mergeKwArg( 'interactionTypes', InteractionType.NONE, kwArgs )
         self.mergeKwArg( 'collisionTypes', InteractionType.NONE, kwArgs )
         self.mergeKwArg( 'drawOrder', 8, kwArgs )
-        ImageObject.__init__( self, pos, image, **kwArgs )
+        super().__init__( pos, image, **kwArgs )
 
 
 
 
 class Shop( ImageObject ):
+    pickPriority = 2
+
     def __init__( self, pos, image, **kwArgs ):
         self.mergeKwArg( 'drawOrder', 2, kwArgs )
-        ImageObject.__init__( self, pos, image, **kwArgs )
+        super().__init__( pos, image, **kwArgs )
 
 
 
 
 class Digspot( ImageObject ):
+    pickPriority = 12
+
     def __init__( self, pos, image, **kwArgs ):
         self.mergeOverlayKwArgs( kwArgs )
         self.mergeKwArg( 'drawOrder', 2, kwArgs )
-        ImageObject.__init__( self, pos, image, **kwArgs )
+        super().__init__( pos, image, **kwArgs )
 
         self.digCount = 0
 
@@ -865,57 +945,54 @@ class Digspot( ImageObject ):
 
 
 class Bush( ImageObject ):
+    pickPriority = 6
+
     def __init__( self, pos, image, **kwArgs ):
         # Objects with the same draw order will go behind each other based on the y coordinate.
         # self.mergeKwArg( 'drawOrder', 2, kwArgs )
-        ImageObject.__init__( self, pos, image, **kwArgs )
+        super().__init__( pos, image, **kwArgs )
 
 
 
 # A door or portal.
 class Portal( ImageObject ):
-    def __init__( self, pos, image, **kwArgs ):
-        ImageObject.__init__( self, pos, image, **kwArgs )
+    pickPriority = 6
 
-
-    # Override getCollisionRect() from Object.
-    def getCollisionRect( self, rect ):
-        # Use a smaller collision rectangle that represents the player's feet.
-        colRect = colRect = rect.copy()
-        # Collision rect from feet to a quarter height.
-        colRect.top = colRect.top + ( ( colRect.height * 3 ) / 4 )
-        colRect.height = colRect.height / 4
-        # Collision rect thinner than the image width by a quarter on each side.
-        # colRect.left = colRect.left + ( colRect.width / 4 )
-        # colRect.width = colRect.width / 2
-
-        return colRect
+    def __init__( self, pos, image, collisionArea = None, **kwArgs ):
+        kwArgs.setdefault( 'collisionSpecification', CollisionSpecification() )
+        super().__init__( pos, image, **kwArgs )
 
 
 
 
 class Arrow( ImageObject ):
+    pickPriority = 6
+
     def __init__( self, pos, image, **kwArgs ):
         self.mergeOverlayKwArgs( kwArgs )
         self.mergeKwArg( 'drawOrder', 2, kwArgs )
-        ImageObject.__init__( self, pos, image, **kwArgs )
+        super().__init__( pos, image, **kwArgs )
 
 
 
 
 class Monster( ImageObject ):
+    pickPriority = 6
+
     def __init__( self, pos, image, **kwArgs ):
         self.mergeOverlayKwArgs( kwArgs )
         self.mergeKwArg( 'drawOrder', 20, kwArgs )
-        ImageObject.__init__( self, pos, image, **kwArgs )
+        super().__init__( pos, image, **kwArgs )
 
 
 
 
 class Coin( ImageObject ):
+    pickPriority = 10
+
     def __init__( self, pos, image, **kwArgs ):
         self.mergeOverlayKwArgs( kwArgs )
-        ImageObject.__init__( self, pos, image, **kwArgs )
+        super().__init__( pos, image, **kwArgs )
 
 
 
@@ -927,7 +1004,7 @@ class Text( Object ):
         self.text = text
         self.mergeNonInteractingKwArgs( kwArgs )
 
-        Object.__init__( self, pos, **kwArgs )
+        super().__init__( pos, **kwArgs )
 
 
     def getSurface( self ):
@@ -951,7 +1028,7 @@ class StaticText( Text ):
 
 class DebugText( StaticText ):
     def __init__( self, pos, text, **kwArgs ):
-        StaticText.__init__( self, pos, text, **kwArgs )
+        super().__init__( pos, text, **kwArgs )
 
 
 
@@ -959,7 +1036,7 @@ class DebugText( StaticText ):
 class Score( StaticText ):
     def __init__( self, pos, score, **kwArgs ):
         kwArgs['colour'] = kwArgs.get( 'colour', WHITE )
-        StaticText.__init__( self, pos, 'Money: %d' % score, **kwArgs )
+        super().__init__( pos, 'Money: %d' % score, **kwArgs )
 
 
     def updateScore( self, score ):
@@ -972,19 +1049,39 @@ class Score( StaticText ):
 
 
 class DynamicObject( ImageObject ):
+    pickPriority = 8
+
     def __init__( self, pos, movementStyle, **kwArgs ):
-        self.images = images = {}
+        self.steps = 0
+        self.canMove = True
+        self.movementStyle = movementStyle
+        self.setImages( **kwArgs )
+        movementStyle.setMoveObject( self )
+
+        super().__init__( pos, self.getImageOfType( 'image' ), **kwArgs )
+
+
+    def setImages( self, **kwArgs ):
+        self._images = images = {}
         images['left'] = kwArgs.get( 'imageL', None )
         images['right'] = kwArgs.get( 'imageR', None )
         images['up'] = kwArgs.get( 'imageUp', None )
         images['down'] = kwArgs.get( 'imageDown', None )
-        images['image'] = kwArgs.get( 'image', self.images['left'] )
-        self.steps = 0
-        self.canMove = True
-        self.movementStyle = movementStyle
-        movementStyle.setMoveObject( self )
+        images['image'] = kwArgs.get( 'image', images['left'] )
 
-        ImageObject.__init__( self, pos, self.images['left'], **kwArgs )
+
+    def getImageOfType( self, imageType ):
+        image = self._images.get( imageType, None )
+
+        if image:
+            return isinstance( image, ImageAnimation ) and image.getImage() or image
+        elif imageType in ( 'up', 'down' ):
+            horizontalFacing = self.movementStyle.facing( 'horizontal' )
+            image = self._images.get( horizontalFacing, None )
+
+            return isinstance( image, ImageAnimation ) and image.getImage() or image
+        else:
+            return None
 
 
     def getBounceAmount( self ):
@@ -1007,16 +1104,7 @@ class DynamicObject( ImageObject ):
 
 
     def getImageSwap( self, direction ):
-        images = self.images
-        imageToSwap = None
-
-        if direction in images:
-            newImage = images[direction]
-
-            if self.getImage() is not newImage:
-                imageToSwap = newImage
-
-        return imageToSwap
+        return self.getImageOfType( direction )
 
 
     def checkUpdateObjectImage( self ):
@@ -1090,25 +1178,8 @@ class DynamicObject( ImageObject ):
 
 class Sprite( DynamicObject ):
     def __init__( self, pos, movementStyle, **kwArgs ):
-        DynamicObject.__init__( self, pos, movementStyle, **kwArgs )
-
-
-    # Override getCollisionRect() from Object.
-    def getCollisionRect( self, rect ):
-        # Use a smaller collision rectangle that represents the player's feet.
-        colRect = colRect = rect.copy()
-        # Collision rect from feet to a quarter height.
-        colRect.top = colRect.top + ( ( colRect.height * 3 ) / 4 )
-        colRect.height = colRect.height / 4
-        # Collision rect thinner than the image width by a quarter on each side.
-        # colRect.left = colRect.left + ( colRect.width / 4 )
-        # colRect.width = colRect.width / 2
-
-        return colRect
-
-
-    def getCentre( self ):
-        return Point( self.x + int( ( float( self.size ) + 0.5 ) / 2 ), self.y + int( ( float( self.size ) + 0.5 ) / 2 ) )
+        kwArgs.setdefault( 'collisionSpecification', CollisionSpecification() )
+        super().__init__( pos, movementStyle, **kwArgs )
 
 
 

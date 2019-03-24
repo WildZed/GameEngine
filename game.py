@@ -97,8 +97,8 @@ class Game( object ):
 
 
     # Control drawing order.
-    def setDrawOrder( self, *args ):
-        self.gameMap.setDrawOrder( args )
+    # def setDrawOrder( self, *args ):
+    #     self.gameMap.setDrawOrder( args )
 
 
     # Control update order. This may not matter but if it does this will control it.
@@ -173,6 +173,47 @@ class Game( object ):
             self.dragObject = event.obj
 
 
+    def movePlayerToScene( self, player, portal, scene, otherPortal ):
+        gameMap = self.gameMap
+
+        if not gameMap.changeScene( scene ):
+            return
+
+        viewPort = self.viewPort
+        scene = gameMap.getScene( scene ) # Name or scene.
+        player.moveToScene( scene )
+        otherPortal = scene.getObject( otherPortal )
+        offset = portal.getCollisionRectCentre() - player.getCollisionRectCentre()
+
+        if not player.movementStyle.moving( 'horizontal' ):
+            offset.x = 0
+
+        if not player.movementStyle.moving( 'vertical' ):
+            offset.y = 0
+
+        newPos = otherPortal.getPos() + offset
+        player.setPos( newPos )
+        viewPort.adjustCamera( newPos )
+
+
+    def moveSpriteToScene( self, sprite, portal, scene, otherPortal ):
+        gameMap = self.gameMap
+        viewPort = self.viewPort
+        scene = gameMap.getScene( scene ) # Name or scene.
+        sprite.moveToScene( scene )
+        returnPortal = scene.getObject( otherPortal )
+        offset = portal.getCollisionRectCentre() - player.getCollisionRectCentre()
+
+        if not sprite.movementStyle.moving( 'horizontal' ):
+            offset.x = 0
+
+        if not sprite.movementStyle.moving( 'vertical' ):
+            offset.y = 0
+
+        newPos = otherPortal.getPos() + offset
+        sprite.setPos( newPos )
+
+
     # Generic game event processing.
     def processEvent( self, event ):
         viewPort = self.viewPort
@@ -182,6 +223,8 @@ class Game( object ):
         if event.type == QUIT:
             self.terminate()
             self.running = False
+        elif VIDEORESIZE == event.type:
+            viewPort.resize( *event.dict['size'] )
         elif KEYDOWN == event.type:
             if K_c == event.key:
                 if player:
@@ -293,7 +336,7 @@ class Game( object ):
         viewPort = self.viewPort
         gameMap = self.gameMap
 
-        # Draw all the map objects.
+        # Draw all the map objects within the view port rectangle.
         gameMap.draw( viewPort )
 
         viewPort.update()
