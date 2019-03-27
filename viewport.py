@@ -294,6 +294,17 @@ class ViewPort( object ):
     def loadMusic( self, musicFile, soundsDir = 'sounds' ):
         musicFile = '%s/%s' % ( soundsDir, musicFile )
         pygame.mixer.music.load( musicFile )
+        self._paused = False
+
+
+    def pauseMusic( self ):
+        if pygame.mixer.music.get_busy():
+            if self._paused:
+                self._paused = False
+                pygame.mixer.music.unpause()
+            else:
+                self._paused = True
+                pygame.mixer.music.pause()
 
 
     def playMusic( self, loops = 0 ):

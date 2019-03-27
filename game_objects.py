@@ -723,17 +723,26 @@ class Object( object ):
     def draw( self, surface, viewRect ):
         if self.visible:
             if viewRect.colliderect( self.rect ):
-                surface.blit( self.surface, self.vpRect )
-
-                viewPortCls = viewport.ViewPort
-
-                if viewPortCls.debugDraw:
-                    vpColRect = self.getCollisionRect( self.vpRect )
-                    viewPortCls.sdrawBox( surface, self.vpRect, colour=self.colour )
-                    viewPortCls.sdrawBox( surface, vpColRect, colour=self.colour )
-                    surface.blit( self.collisionMaskSurface, self.vpRect )
+                self.drawToSurface( surface )
+                self.drawDebug( surface )
 
             self.drawAttachedObjects( surface, viewRect )
+
+
+    def drawToSurface( self, surface ):
+        surface.blit( self.surface, self.vpRect )
+
+
+    def drawDebug( self, surface ):
+        viewPortCls = viewport.ViewPort
+
+        if not viewPortCls.debugDraw:
+            return
+
+        vpColRect = self.getCollisionRect( self.vpRect )
+        viewPortCls.sdrawBox( surface, self.vpRect, colour=self.colour )
+        viewPortCls.sdrawBox( surface, vpColRect, colour=self.colour )
+        surface.blit( self.collisionMaskSurface, self.vpRect )
 
 
     def drawAttachedObjects( self, surface, viewRect ):
@@ -802,7 +811,7 @@ class ImageObject( Object ):
     def getSurface( self ):
         width = int( self.getWidth() )
         height = int( self.getHeight() )
-        surface = pygame.transform.scale( self.image, ( width, height ) )
+        surface = pygame.transform.scale( self.image, ( width, height ) ) #.convert_alpha()
 
         return surface
 
@@ -865,12 +874,11 @@ class Box( Object ):
 
 
     def getSurface( self ):
-        surface = Object.getSurface( self )
-        surface = surface.convert_alpha()
+        surface = super().getSurface() #.convert_alpha()
         width = self.getWidth()
         height = self.getHeight()
         rect = pygame.Rect( 1, 1, width - 2, height - 2 )
-        surface.fill( BLACK_ALPHA, rect )
+        surface.fill( BLACK_TRANSPARENT_ALPHA, rect )
 
         return surface
 
@@ -917,6 +925,14 @@ class Fog( ImageObject ):
         self.mergeKwArg( 'collisionTypes', InteractionType.NONE, kwArgs )
         self.mergeKwArg( 'drawOrder', 8, kwArgs )
         super().__init__( pos, image, **kwArgs )
+
+
+    def drawToSurface( self, surface ): # override
+        colour = self.surface.get_at( ( 0, 0 ) )
+        fogSurface = surface.copy().convert_alpha() # This is neccessary.
+        fogSurface.fill( colour )
+        fogSurface.blit( self.surface, self.vpRect, special_flags=BLEND_RGBA_MULT )
+        surface.blit( fogSurface, ( 0, 0 ) )
 
 
 
@@ -1009,6 +1025,7 @@ class Text( Object ):
 
     def getSurface( self ):
         return self.font.render( self.text, True, self.colour )
+
 
 
 

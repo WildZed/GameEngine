@@ -44,17 +44,20 @@ class ImageStore( object ):
         self.imageDir = imageDir
 
 
-    def load( self, name, modes = None ):
+    def load( self, fileName, modes = None, name = None ):
+        if not name:
+            name = fileName
+
         nameNoSpace = name.replace( ' ', '_' )
 
         if modes:
             if modes == 'LR':
-                imageFile = '%s.png' % name
+                imageFile = '%s.png' % fileName
                 image = self.loadImage( imageFile )
                 self.__dict__[nameNoSpace + 'L'] = image
                 self.__dict__[nameNoSpace + 'R'] = pygame.transform.flip( image, True, False )
             elif modes == 'RL':
-                imageFile = '%s.png' % name
+                imageFile = '%s.png' % fileName
                 image = self.loadImage( imageFile )
                 self.__dict__[nameNoSpace + 'R'] = image
                 self.__dict__[nameNoSpace + 'L'] = pygame.transform.flip( image, True, False )
@@ -63,12 +66,12 @@ class ImageStore( object ):
                 self.__dict__[nameNoSpace + 's'] = images = {}
 
                 for postFix in modes:
-                    imageFile = '%s%s.png' % ( name, postFix )
+                    imageFile = '%s%s.png' % ( fileName, postFix )
                     image = self.loadImage( imageFile )
                     images[postFix] = image
 
         else:
-            imageFile = '%s.png' % name
+            imageFile = '%s.png' % fileName
             image = self.loadImage( imageFile )
             self.__dict__[nameNoSpace] = image
 
@@ -385,7 +388,7 @@ class Scene( ObjectStore ):
         # Draw the background.
         viewPort.drawBackGround( self.backGroundColour )
 
-        ObjectStore.draw( self, viewPort )
+        super().draw( viewPort )
 
 
     def collidesWithBoundary( self, testObj ):

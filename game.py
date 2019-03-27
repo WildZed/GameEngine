@@ -64,6 +64,7 @@ class Game( object ):
     def loadImages( self ):
         pass
 
+
     # Initialise the contents of the map
     def initMap( self ):
         pass
@@ -251,6 +252,8 @@ class Game( object ):
             elif K_c == event.key:
                 self.cameraMovement = False
                 viewPort.stopCameraMovement()
+            elif K_m == event.key:
+                viewPort.pauseMusic()
 
             if self.cameraMovement:
                 viewPort.stopCameraMovement( key=event.key )
