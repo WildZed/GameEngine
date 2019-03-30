@@ -811,7 +811,13 @@ class ImageObject( Object ):
     def getSurface( self ):
         width = int( self.getWidth() )
         height = int( self.getHeight() )
-        surface = pygame.transform.scale( self.image, ( width, height ) ) #.convert_alpha()
+        surface = pygame.transform.scale( self.image, ( width, height ) )
+
+        # This prevents collision detection working properly for some reason.
+        # It's not supposed to have any effect on per pixel alpha surfaces.
+        # if self.scene:
+        #     # print( 'Colour key:', surface.get_colorkey() )
+        #     surface.set_colorkey( self.scene.backGroundColour, pygame.RLEACCEL )
 
         return surface
 
@@ -901,7 +907,7 @@ class BackGround( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
         self.mergeKwArg( 'objectProperties', InteractionType.HARD, kwArgs )
         self.mergeKwArg( 'interactionTypes', InteractionType.NONE, kwArgs )
-        self.mergeKwArg( 'drawOrder', 0, kwArgs )
+        self.mergeKwArg( 'drawOrder', 1, kwArgs )
         super().__init__( pos, image, **kwArgs )
 
 
@@ -910,7 +916,7 @@ class BackGround( ImageObject ):
 class SoftBackGround( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
         self.mergeNonInteractingKwArgs( kwArgs )
-        self.mergeKwArg( 'drawOrder', 0, kwArgs )
+        self.mergeKwArg( 'drawOrder', 1, kwArgs )
         super().__init__( pos, image, **kwArgs )
 
 
@@ -1024,8 +1030,12 @@ class Text( Object ):
 
 
     def getSurface( self ):
-        return self.font.render( self.text, True, self.colour )
+        surface = self.font.render( self.text, True, self.colour )
 
+        # if self.scene:
+        #     surface.set_colorkey( self.scene.backGroundColour )
+
+        return surface
 
 
 

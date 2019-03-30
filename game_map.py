@@ -44,7 +44,7 @@ class ImageStore( object ):
         self.imageDir = imageDir
 
 
-    def load( self, fileName, modes = None, name = None ):
+    def load( self, fileName, modes = None, name = None, alpha = True ):
         if not name:
             name = fileName
 
@@ -53,12 +53,12 @@ class ImageStore( object ):
         if modes:
             if modes == 'LR':
                 imageFile = '%s.png' % fileName
-                image = self.loadImage( imageFile )
+                image = self.loadImage( imageFile, alpha=alpha )
                 self.__dict__[nameNoSpace + 'L'] = image
                 self.__dict__[nameNoSpace + 'R'] = pygame.transform.flip( image, True, False )
             elif modes == 'RL':
                 imageFile = '%s.png' % fileName
-                image = self.loadImage( imageFile )
+                image = self.loadImage( imageFile, alpha=alpha )
                 self.__dict__[nameNoSpace + 'R'] = image
                 self.__dict__[nameNoSpace + 'L'] = pygame.transform.flip( image, True, False )
             else:
@@ -67,21 +67,29 @@ class ImageStore( object ):
 
                 for postFix in modes:
                     imageFile = '%s%s.png' % ( fileName, postFix )
-                    image = self.loadImage( imageFile )
+                    image = self.loadImage( imageFile, alpha=alpha )
                     images[postFix] = image
 
         else:
             imageFile = '%s.png' % fileName
-            image = self.loadImage( imageFile )
+            image = self.loadImage( imageFile, alpha=alpha )
             self.__dict__[nameNoSpace] = image
 
         return image
 
 
-    def loadImage( self, imageFile ):
+    def loadImage( self, imageFile, alpha = True ):
         imageFile = '%s/%s' % ( self.imageDir, imageFile )
 
-        return pygame.image.load( imageFile ).convert_alpha()
+        image = pygame.image.load( imageFile )
+
+        if alpha:
+            image = image.convert_alpha()
+        else:
+            image = image.convert()
+            image.set_colorkey( WHITE )
+
+        return image
 
 
 
