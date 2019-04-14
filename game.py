@@ -202,8 +202,8 @@ class Game( object ):
         viewPort = self.viewPort
         scene = gameMap.getScene( scene ) # Name or scene.
         sprite.moveToScene( scene )
-        returnPortal = scene.getObject( otherPortal )
-        offset = portal.getCollisionRectCentre() - player.getCollisionRectCentre()
+        otherPortal = scene.getObject( otherPortal )
+        offset = portal.getCollisionRectCentre() - sprite.getCollisionRectCentre()
 
         if not sprite.movementStyle.moving( 'horizontal' ):
             offset.x = 0
@@ -227,39 +227,53 @@ class Game( object ):
         elif VIDEORESIZE == event.type:
             viewPort.resize( *event.dict['size'] )
         elif KEYDOWN == event.type:
-            if K_c == event.key:
-                if player:
-                    player.stopMovement()
+            keyMods = pygame.key.get_mods()
 
-                self.cameraMovement = True
+            if keyMods:
+                pass
+            else:
+                if K_c == event.key:
+                    if player:
+                        player.stopMovement()
 
-            if self.cameraMovement:
-                viewPort.setCameraMovement( key=event.key )
-            elif player:
-                # Check if the key moves the player in a given direction.
-                player.setMovement( key=event.key )
+                    self.cameraMovement = True
+
+                if self.cameraMovement:
+                    viewPort.setCameraMovement( key=event.key )
+                elif player:
+                    # Check if the key moves the player in a given direction.
+                    player.setMovement( key=event.key )
         elif KEYUP == event.type:
-            if K_ESCAPE == event.key:
-                self.terminate()
-            elif K_F5 == event.key:
-                self.running = False
-            elif K_F12 == event.key:
-                import viewport
+            keyMods = pygame.key.get_mods()
 
-                viewport.ViewPort.toggleDebugDraw()
-            elif K_PAUSE == event.key:
-                self.togglePaused()
-            elif K_c == event.key:
-                self.cameraMovement = False
-                viewPort.stopCameraMovement()
-            elif K_m == event.key:
-                viewPort.pauseMusic()
+            if keyMods:
+                if keyMods & pygame.KMOD_SHIFT:
+                    if K_f == event.key:
+                        pygame.display.toggle_fullscreen()
+            else:
+                if K_ESCAPE == event.key:
+                    self.terminate()
+                elif K_F5 == event.key:
+                    self.running = False
+                elif K_F12 == event.key:
+                    import viewport
 
-            if self.cameraMovement:
-                viewPort.stopCameraMovement( key=event.key )
-            elif player:
-                # Check if the key stops the player in a given direction.
-                player.stopMovement( key=event.key )
+                    viewport.ViewPort.toggleDebugDraw()
+                elif K_PAUSE == event.key:
+                    self.togglePaused()
+                elif K_c == event.key:
+                    self.cameraMovement = False
+                    viewPort.stopCameraMovement()
+                elif K_m == event.key:
+                    viewPort.pauseMusic()
+                elif K_q == event.key:
+                    self.running = False
+
+                if self.cameraMovement:
+                    viewPort.stopCameraMovement( key=event.key )
+                elif player:
+                    # Check if the key stops the player in a given direction.
+                    player.stopMovement( key=event.key )
         elif MOUSEBUTTONDOWN == event.type:
             # Remember mouse down position.
             self.setClickPos( event )

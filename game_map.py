@@ -87,7 +87,9 @@ class ImageStore( object ):
             image = image.convert_alpha()
         else:
             image = image.convert()
+            # Images with transparency appear to use WHITE as the transparent colour.
             image.set_colorkey( WHITE )
+            # image.set_colorkey( BLACK )
 
         return image
 
@@ -258,10 +260,11 @@ class ObjectStore( object ):
 
     def draw( self, viewPort, debugDraw = False ):
         drawList = self.getSortedDrawList()
-        surface = viewPort.displaySurface
+        surface = viewPort.surface
         viewRect = viewPort.getCameraRect()
 
         for obj in drawList:
+            # if type( obj ) is go.BackGround:
             obj.draw( surface, viewRect )
 
 
@@ -288,7 +291,7 @@ class ObjectStore( object ):
 
             for obj in objList:
                 if None == obj.scene or obj.scene == currentScene:
-                    obj.draw( viewPort.displaySurface, viewRect )
+                    obj.draw( viewPort.surface, viewRect )
 
 
     def collides( self, testObj ):
@@ -399,16 +402,14 @@ class Scene( ObjectStore ):
         super().draw( viewPort )
 
 
-    def collidesWithBoundary( self, testObj ):
+    def collidesWithBoundary( self, obj ):
         collisionEvent = None
 
         if self.boundaryStyle:
-            rect = testObj.getMaskRect( testObj.collisionMask, testObj.getOffSetPos() )
-            collides = self.boundaryStyle.collidesWithRect( rect )
+            collisionData = self.boundaryStyle.collidesWith( obj )
 
-            if collides:
-                collisionData = go.CollisionData( Point( rect.left, rect.top ), rect )
-                collisionEvent = createCollisionEvent( testObj, self.boundaryStyle, collisionData )
+            if collisionData:
+                collisionEvent = createCollisionEvent( obj, self.boundaryStyle, collisionData )
 
         return collisionEvent
 

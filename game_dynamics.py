@@ -4,7 +4,8 @@
 import copy, random, pygame
 from pygame.locals import *
 from geometry import *
-from game_constants import *
+import game_constants as gc
+import game_objects as go
 
 
 # Constants.
@@ -195,6 +196,17 @@ class RectangleBoundary( Boundary ):
         return rect.boundPoint( newPos )
 
 
+    def collidesWith( self, obj ):
+        rect = obj.getMaskRect( obj.collisionMask, obj.getOffSetPos() )
+
+        if self.collidesWithRect( rect ):
+            collisionData = go.CollisionData( Point( rect.left, rect.top ), rect )
+        else:
+            collisionData = None
+
+        return collisionData
+
+
     def collidesWithRect( self, rect ):
         return not self.rect.colliderect( rect )
 
@@ -216,7 +228,7 @@ class CollisionBoundary( Boundary ):
         moveObject.popPos()
         self.setEvent( event )
 
-        if event and event.type != COLLISION_EVENT:
+        if event and event.type != gc.COLLISION_EVENT:
             return None
 
         return event

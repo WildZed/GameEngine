@@ -4,13 +4,13 @@
 import random, pygame, copy, os
 from pygame.locals import *
 from geometry import *
-from game_utils import fontCache
-from game_constants import *
+import game_utils as gu
+import game_constants as gc
 
 
 # Constants:
 
-DEFAULT_BACKGROUND_COLOUR = WHITE
+DEFAULT_BACKGROUND_COLOUR = gc.WHITE
 # How far from the center the player moves before moving the camera.
 DEFAULT_CAMERASLACK = 90
 
@@ -33,27 +33,23 @@ class ViewPort( object ):
 
 
     @staticmethod
-    def sdrawRect( surface, rect, colour = BLACK ):
+    def sdrawRect( surface, rect, colour = gc.BLACK ):
         pygame.draw.rect( surface, colour, rect )
 
 
     @staticmethod
-    def sdrawBox( surface, rect, colour = BLACK ):
+    def sdrawBox( surface, rect, colour = gc.BLACK ):
         pygame.draw.lines( surface, colour, True, ( rect.topleft, rect.topright, rect.bottomright, rect.bottomleft ) )
 
 
     @staticmethod
-    def sdrawPos( surface, pos, colour = BLACK ):
+    def sdrawPos( surface, pos, colour = gc.BLACK ):
         rect = Rectangle( pos - 20, pos + 20 )
         points = rect.asTupleTuple()
         pygame.draw.lines( surface, colour, True, points )
 
 
     def __init__( self, width, height, topLeft = None ):
-        self.width = width
-        self.height = height
-        self.halfWidth = int( width / 2 )
-        self.halfHeight = int( height / 2 )
         self.backGroundColour = DEFAULT_BACKGROUND_COLOUR
         # Camera is the top left of where the camera view is.
         self.camera = Point( 0, 0 )
@@ -61,21 +57,31 @@ class ViewPort( object ):
         self.cameraMovementStyle = None
 
         if topLeft:
-            os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % ( topLeft.x, topLeft.y )
+            self.setWindowPosition( topLeft )
 
         pygame.init()
+        self.setSize( width, height )
+        gu.fontCache.addFont( 'basic', 'freesansbold', 32 )
+        gu.fontCache.addFont( 'small', 'freesansbold', 22 )
+        # print( pygame.display.Info() )
 
+
+    def setWindowPosition( self, topLeft ):
+        os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % ( topLeft.x, topLeft.y )
+
+
+    def setSize( self, width, height ):
+        self.width = width
+        self.height = height
+        self.halfWidth = int( width / 2 )
+        self.halfHeight = int( height / 2 )
         size = ( width, height )
         self.displaySurface = pygame.display.set_mode( size, HWSURFACE | DOUBLEBUF | RESIZABLE )
-        fontCache.addFont( 'basic', 'freesansbold', 32 )
-        fontCache.addFont( 'small', 'freesansbold', 22 )
+        self.surface = self.displaySurface.convert()
 
 
     def resize( self, width, height ):
-        self.width = width
-        self.height = height
-        size = ( width, height )
-        self.displaySurface = pygame.display.set_mode( size, HWSURFACE | DOUBLEBUF | RESIZABLE )
+        self.setSize( width, height )
         self.update()
 
 
@@ -192,19 +198,19 @@ class ViewPort( object ):
 
     def drawBackGround( self, colour ):
         self.backGroundColour = colour
-        self.displaySurface.fill( colour )
+        self.surface.fill( colour )
 
 
     def drawRect( self, rect, **kwArgs ):
-        ViewPort.sdrawRect( self.displaySurface, rect, **kwArgs )
+        ViewPort.sdrawRect( self.surface, rect, **kwArgs )
 
 
     def drawBox( self, rect, **kwArgs ):
-        ViewPort.sdrawBox( self.displaySurface, rect, **kwArgs )
+        ViewPort.sdrawBox( self.surface, rect, **kwArgs )
 
 
     def drawPos( self, pos, **kwArgs ):
-        ViewPort.sdrawPos( self.displaySurface, pos, **kwArgs )
+        ViewPort.sdrawPos( self.surface, pos, **kwArgs )
 
 
     # Does the point collide with a colour other than the background colour.
@@ -273,6 +279,7 @@ class ViewPort( object ):
 
     def update( self ):
         viewRect = self.getViewportRect()
+        self.displaySurface.blit( self.surface, viewRect )
         pygame.display.update( viewRect )
 
 
