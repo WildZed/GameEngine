@@ -1,4 +1,4 @@
-# Monkey-Rabbit Games
+# Minitest Games
 # Game Engine
 
 import pygame, copy

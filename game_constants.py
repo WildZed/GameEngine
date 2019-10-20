@@ -1,4 +1,4 @@
-# Monkey-Rabbit Games
+# Minitest Games
 # Game Constants.
 
 from pygame.locals import *

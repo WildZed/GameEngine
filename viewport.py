@@ -1,4 +1,4 @@
-# Monkey-Rabbit Games
+# Minitest Games
 # ViewPort
 
 import random, pygame, copy, os

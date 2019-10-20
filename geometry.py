@@ -1,4 +1,4 @@
-# Monkey-Rabbit Games
+# Minitest Games
 # Geometry
 
 import copy, pygame
@@ -308,6 +308,10 @@ class Rectangle( object ):
             val = Point( self.ll.x, self.ur.y )
         elif key == 'lr':
             val = Point( self.ur.x, self.ll.y )
+        elif key == 'width':
+            val = self.ur.x - self.ll.x
+        elif key == 'height':
+            val = self.ur.y - self.ll.y
         else:
             raise AttributeError( "Rect attribute '%s' not recognised." % key )
 

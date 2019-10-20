@@ -1,4 +1,4 @@
-# Monkey-Rabbit Games
+# Minitest Games
 # Game Dynamics
 
 import copy, random, pygame

@@ -1,4 +1,4 @@
-# Monkey-Rabbit Games
+# Minitest Games
 # Game Objects
 
 import random, time, math, pygame, copy
@@ -563,10 +563,10 @@ class Object( object ):
         return interactionPoint
 
 
-    def collidesWith( self, obj ):
+    def collidesWith( self, obj, forceCollision = False ):
         collisionData = None
 
-        if self.canCollide( obj ):
+        if forceCollision or self.canCollide( obj ):
             collisionData = self.collidesWithColour( obj )
 
         return collisionData

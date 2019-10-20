@@ -1,4 +1,4 @@
-# Monkey-Rabbit Games
+# Minitest Games
 # Game Engine
 
 import sys, pygame
@@ -254,6 +254,10 @@ class Game( object ):
                 viewPort.stopCameraMovement()
             elif K_m == event.key:
                 viewPort.pauseMusic()
+            elif K_q == event.key:
+                self.running = False
+            #elif K_e == event.key:
+                # Show the bag.
 
             if self.cameraMovement:
                 viewPort.stopCameraMovement( key=event.key )
