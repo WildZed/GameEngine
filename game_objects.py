@@ -5,8 +5,8 @@ import random, time, math, pygame, copy
 import viewport
 from pygame.locals import *
 from geometry import *
-from game_utils import fontCache, debugPrintMask
-from game_constants import *
+import game_utils as gu
+import game_constants as gc
 
 
 # Constants.
@@ -135,7 +135,7 @@ class Object( object ):
         #         'viewport_top_left', 'viewport_centre'
         self.positionStyle = kwArgs.get( 'positionStyle', '' )
         # print( '%s: positionStyle = %s' % ( self.__class__, self.positionStyle ) )
-        self.colour = kwArgs.get( 'colour', BLACK )
+        self.colour = kwArgs.get( 'colour', gc.BLACK )
         # self.mirrorV = kwArgs.get( 'mirrorV', False )
         # self.mirrorH = kwArgs.get( 'mirrorH', False )
         self.updateCallback = kwArgs.get( 'updateCallback', None )
@@ -295,8 +295,12 @@ class Object( object ):
         width, height = surface.get_size()
         # Create a surface of the given surface's width and height.
         # maskSurface = pygame.Surface( ( width, height ) )
-        maskSurface = pygame.Surface.copy( surface )
-        maskSurface.fill( 0 )
+        # For some reason convert() loses all the image data. Oh no it doesn't, I was just not setting the transparent colour correctly.
+        maskSurface = surface.copy() # .convert() # pygame.Surface.copy( surface )
+        # maskSurface.set_colorkey( gc.WHITE )
+        transparent = maskSurface.get_colorkey() or 0
+        # Fill completely transparent.
+        maskSurface.fill( transparent ) # gc.WHITE ) # Transparent.
         # Get rect and collision rect relative to ORIGIN for blitting just the collision part of the image.
         rect = self.getRect()
         colRect = self.getCollisionRect( rect )
@@ -307,6 +311,13 @@ class Object( object ):
         # Destination in maskSurface needs to match area.
         dest = ( relLeft, relTop )
         maskSurface.blit( surface, dest, area=blitArea )
+
+        # if isinstance( self, Portal ): # width < 80:
+        #     print( self.__class__.__name__, self.name )
+        #     print( 'Size:', width, height )
+        #     print( 'Blit area:', blitArea )
+        #     print( 'Colour key:', maskSurface.get_colorkey() )
+        #     gu.debugPrintSurface( maskSurface )
 
         return maskSurface
 
@@ -730,7 +741,18 @@ class Object( object ):
 
 
     def drawToSurface( self, surface ):
-        surface.blit( self.surface, self.vpRect )
+        vpRect = self.vpRect
+
+        if False:
+            # Faster method to non-per-pixel alpha surface.
+            clippedVpRect = vpRect.clip( surface.get_rect() )
+            subSurface = surface.subsurface( clippedVpRect ).convert_alpha()
+            subSurface.blit( self.surface, vpRect )
+            # print( 'clippedRect:', clippedVpRect )
+            surface.blit( subSurface, clippedVpRect ) #, special_flags=BLEND_RGBA_MULT )
+        else:
+            # Basic method.
+            surface.blit( self.surface, vpRect )
 
 
     def drawDebug( self, surface ):
@@ -739,10 +761,15 @@ class Object( object ):
         if not viewPortCls.debugDraw:
             return
 
-        vpColRect = self.getCollisionRect( self.vpRect )
-        viewPortCls.sdrawBox( surface, self.vpRect, colour=self.colour )
+        vpRect = self.vpRect
+        maskVpRect = vpRect.copy()
+        maskVpRect.left += 40
+        vpColRect = self.getCollisionRect( vpRect )
+        viewPortCls.sdrawBox( surface, vpRect, colour=self.colour )
         viewPortCls.sdrawBox( surface, vpColRect, colour=self.colour )
-        surface.blit( self.collisionMaskSurface, self.vpRect )
+        # Hmmmm, for some unknown reason convert() makes the mask surface completely invisible, unless it is a non-per-pixel alpha surface, in which case it is completely black.
+        collisionMaskSurface = self.collisionMaskSurface # .convert()
+        surface.blit( collisionMaskSurface, maskVpRect )
 
 
     def drawAttachedObjects( self, surface, viewRect ):
@@ -811,7 +838,13 @@ class ImageObject( Object ):
     def getSurface( self ):
         width = int( self.getWidth() )
         height = int( self.getHeight() )
-        surface = pygame.transform.scale( self.image, ( width, height ) ) #.convert_alpha()
+        surface = pygame.transform.scale( self.image, ( width, height ) )
+
+        # This prevents collision detection working properly for some reason.
+        # It's not supposed to have any effect on per pixel alpha surfaces.
+        # if self.scene:
+        #     # print( 'Colour key:', surface.get_colorkey() )
+        #     surface.set_colorkey( self.scene.backGroundColour, pygame.RLEACCEL )
 
         return surface
 
@@ -836,7 +869,7 @@ class ImageObject( Object ):
 
         event = self.collidesWithScene()
 
-        if event and event.type == COLLISION_EVENT:
+        if event and event.type == gc.COLLISION_EVENT:
             self.swapImage( currentImage )
             swapped = False
 
@@ -857,11 +890,11 @@ class ImageObject( Object ):
         return ratio
 
 
-    def attachText( self, text, offset = DEFAULT_IMAGE_OBJECT_TEXT_OFFSET, colour = GREEN ):
+    def attachText( self, text, offset = gc.DEFAULT_IMAGE_OBJECT_TEXT_OFFSET, colour = gc.GREEN ):
         if self.attachedText:
             self.detachObject( self.attachedText )
 
-        self.attachedText = Text( offset, text, font=fontCache['small'], colour=colour )
+        self.attachedText = Text( offset, text, font=gu.fontCache['small'], colour=colour )
         self.attachObject( self.attachedText )
 
 
@@ -878,7 +911,7 @@ class Box( Object ):
         width = self.getWidth()
         height = self.getHeight()
         rect = pygame.Rect( 1, 1, width - 2, height - 2 )
-        surface.fill( BLACK_TRANSPARENT_ALPHA, rect )
+        surface.fill( gc.BLACK_TRANSPARENT_ALPHA, rect )
 
         return surface
 
@@ -901,7 +934,7 @@ class BackGround( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
         self.mergeKwArg( 'objectProperties', InteractionType.HARD, kwArgs )
         self.mergeKwArg( 'interactionTypes', InteractionType.NONE, kwArgs )
-        self.mergeKwArg( 'drawOrder', 0, kwArgs )
+        self.mergeKwArg( 'drawOrder', 1, kwArgs )
         super().__init__( pos, image, **kwArgs )
 
 
@@ -910,7 +943,7 @@ class BackGround( ImageObject ):
 class SoftBackGround( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
         self.mergeNonInteractingKwArgs( kwArgs )
-        self.mergeKwArg( 'drawOrder', 0, kwArgs )
+        self.mergeKwArg( 'drawOrder', 1, kwArgs )
         super().__init__( pos, image, **kwArgs )
 
 
@@ -928,11 +961,26 @@ class Fog( ImageObject ):
 
 
     def drawToSurface( self, surface ): # override
+        vpRect = self.vpRect
         colour = self.surface.get_at( ( 0, 0 ) )
-        fogSurface = surface.copy().convert_alpha() # This is neccessary.
-        fogSurface.fill( colour )
-        fogSurface.blit( self.surface, self.vpRect, special_flags=BLEND_RGBA_MULT )
-        surface.blit( fogSurface, ( 0, 0 ) )
+
+        if True:
+            # The fast method. Fill all other areas of the surface with the fog colour.
+            gu.fillSurfaceMinusRectangle( surface, vpRect, colour )
+            clippedVpRect = vpRect.clip( surface.get_rect() )
+            subSurface = surface.subsurface( clippedVpRect ).convert_alpha()
+            objClippedRect = vpRect.copy()
+            objClippedRect = pygame.Rect( clippedVpRect.left - vpRect.left, clippedVpRect.top - vpRect.top, clippedVpRect.width, clippedVpRect.height )
+            # print( 'obj clipped rect:', objClippedRect )
+            objSubSurface = self.surface.subsurface( objClippedRect )
+            subSurface.blit( objSubSurface, (0, 0) )
+            surface.blit( subSurface.convert(), clippedVpRect ) #, special_flags=BLEND_RGBA_MULT )
+        else:
+            # The slow method. Fill a copy window surface with the fog colour and blit (draw) the smaller fog surface onto it with per pixel alpha.
+            fogSurface = surface.copy().convert_alpha() # This is neccessary for the fog to work.
+            fogSurface.fill( colour )
+            fogSurface.blit( self.surface, vpRect, special_flags=BLEND_RGBA_MULT )
+            surface.blit( fogSurface, ( 0, 0 ) )
 
 
 
@@ -1016,7 +1064,7 @@ class Coin( ImageObject ):
 # Creates text in world coordinates.
 class Text( Object ):
     def __init__( self, pos, text, **kwArgs ):
-        self.font = kwArgs.get( 'font', fontCache['basic'] )
+        self.font = kwArgs.get( 'font', gu.fontCache['basic'] )
         self.text = text
         self.mergeNonInteractingKwArgs( kwArgs )
 
@@ -1024,8 +1072,12 @@ class Text( Object ):
 
 
     def getSurface( self ):
-        return self.font.render( self.text, True, self.colour )
+        surface = self.font.render( self.text, True, self.colour )
 
+        # if self.scene:
+        #     surface.set_colorkey( self.scene.backGroundColour )
+
+        return surface
 
 
 
@@ -1052,7 +1104,7 @@ class DebugText( StaticText ):
 
 class Score( StaticText ):
     def __init__( self, pos, score, **kwArgs ):
-        kwArgs['colour'] = kwArgs.get( 'colour', WHITE )
+        kwArgs['colour'] = kwArgs.get( 'colour', gc.WHITE )
         super().__init__( pos, 'Money: %d' % score, **kwArgs )
 
 

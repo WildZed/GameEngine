@@ -202,8 +202,8 @@ class Game( object ):
         viewPort = self.viewPort
         scene = gameMap.getScene( scene ) # Name or scene.
         sprite.moveToScene( scene )
-        returnPortal = scene.getObject( otherPortal )
-        offset = portal.getCollisionRectCentre() - player.getCollisionRectCentre()
+        otherPortal = scene.getObject( otherPortal )
+        offset = portal.getCollisionRectCentre() - sprite.getCollisionRectCentre()
 
         if not sprite.movementStyle.moving( 'horizontal' ):
             offset.x = 0
@@ -227,6 +227,11 @@ class Game( object ):
         elif VIDEORESIZE == event.type:
             viewPort.resize( *event.dict['size'] )
         elif KEYDOWN == event.type:
+            keyMods = pygame.key.get_mods()
+
+            if keyMods:
+                pass
+            else:
             if K_c == event.key:
                 if player:
                     player.stopMovement()
@@ -239,6 +244,13 @@ class Game( object ):
                 # Check if the key moves the player in a given direction.
                 player.setMovement( key=event.key )
         elif KEYUP == event.type:
+            keyMods = pygame.key.get_mods()
+
+            if keyMods:
+                if keyMods & pygame.KMOD_SHIFT:
+                    if K_f == event.key:
+                        pygame.display.toggle_fullscreen()
+            else:
             if K_ESCAPE == event.key:
                 self.terminate()
             elif K_F5 == event.key:
