@@ -1,7 +1,7 @@
 # Minitest Games
 # Game Dynamics
 
-import copy, random, pygame
+import copy, random, pygame, math
 from pygame.locals import *
 from geometry import *
 import game_constants as gc
@@ -401,6 +401,17 @@ class GeneralMovementStyle( MovementStyle ):
         return self.boundaryStyle
 
 
+    def getBounceAmount( self ):
+        # Returns the number of pixels to offset based on the bounce.
+        # Larger bounceRate means a slower bounce.
+        # Larger bounceHeight means a higher bounce.
+        # currentBounce will always be less than bounceRate.
+        bounceRate = self.bounceRate
+        bounceHeight = self.bounceHeight
+
+        return int( math.sin( ( math.pi / float( bounceRate ) ) * self.bounce ) * bounceHeight ) if bounceRate and bounceHeight else 0
+
+
     def moving( self, direction = 'any' ):
         return self.directions[direction]
 
@@ -415,6 +426,33 @@ class GeneralMovementStyle( MovementStyle ):
             newPos = self.boundaryStyle.getBoundedPosition( self.getMoveObject(), newPos )
 
         return newPos
+
+
+    def getImage( self, images, key ):
+        image = images[key]
+
+        # No specific up or down image, choose a horizontal facing image.
+        if image is None and key in ( 'up', 'down' ):
+            image = images[self.facing( 'horizontal' )]
+
+        return image
+
+
+    def chooseImage( self, images ):
+        # Flip the player image if changed direction.
+        movement = self.moving( 'horizontal' )
+
+        if movement:
+            image = self.getImage( images, movement )
+        else:
+            movement = self.moving( 'vertical' )
+
+            if movement:
+                image = self.getImage( images, movement )
+            else:
+                image = None
+
+        return image
 
 
     def postEvent( self, event ):

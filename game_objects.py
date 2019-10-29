@@ -105,6 +105,34 @@ class ImageAnimation( object ):
 
 
 
+class ImageCollection( object ):
+    def __init__( self, *args, **kwArgs ):
+        self._images = images = kwArgs
+
+        for obj in args:
+            if isinstance( obj, ImageCollection ):
+                images.update( obj._images )
+            elif isinstance( obj, dict ):
+                images.update( obj )
+
+        # Add a default image if one doesn't already exist.
+        self._images['image'] = images.get( 'image', next( iter( images.values() ), None ) )
+
+
+    def getImage( self, key, advance = True ):
+        if not key:
+            return None
+
+        image = self._images.get( key, None )
+
+        return isinstance( image, ImageAnimation ) and image.getImage( advance=advance ) or image
+
+
+    def __getitem__( self, key ):
+        return self.getImage( key )
+
+
+
 # A generic game object.
 class Object( object ):
     # Constants.
@@ -827,8 +855,8 @@ class Object( object ):
 # Default Image object provides colour collision.
 class ImageObject( Object ):
     def __init__( self, pos, image, **kwArgs ):
-        self.image = image
-        self.attachedText = None
+        self._image = image
+        self._attachedText = None
 
         kwArgs['ratio'] = self.calculateRatio( **kwArgs )
 
@@ -838,7 +866,7 @@ class ImageObject( Object ):
     def getSurface( self ):
         width = int( self.getWidth() )
         height = int( self.getHeight() )
-        surface = pygame.transform.scale( self.image, ( width, height ) )
+        surface = pygame.transform.scale( self._image, ( width, height ) )
 
         # This prevents collision detection working properly for some reason.
         # It's not supposed to have any effect on per pixel alpha surfaces.
@@ -850,11 +878,11 @@ class ImageObject( Object ):
 
 
     def getImage( self ):
-        return self.image
+        return self._image
 
 
     def swapImage( self, image ):
-        self.image = image
+        self._image = image
         self.updateSurface()
 
 
@@ -878,7 +906,7 @@ class ImageObject( Object ):
 
     def calculateRatio( self, **kwArgs ):
         # The ratio of height to width.
-        image = self.image
+        image = self._image
         ratio = float( image.get_height() ) / float( image.get_width() )
 
         if 'ratio' in kwArgs:
@@ -891,11 +919,11 @@ class ImageObject( Object ):
 
 
     def attachText( self, text, offset = gc.DEFAULT_IMAGE_OBJECT_TEXT_OFFSET, colour = gc.GREEN ):
-        if self.attachedText:
-            self.detachObject( self.attachedText )
+        if self._attachedText:
+            self.detachObject( self._attachedText )
 
-        self.attachedText = Text( offset, text, font=gu.fontCache['small'], colour=colour )
-        self.attachObject( self.attachedText )
+        self._attachedText = Text( offset, text, font=gu.fontCache['small'], colour=colour )
+        self.attachObject( self._attachedText )
 
 
 
@@ -1121,84 +1149,25 @@ class DynamicObject( ImageObject ):
     pickPriority = 8
 
     def __init__( self, pos, movementStyle, **kwArgs ):
-        self.steps = 0
-        self.canMove = True
-        self.movementStyle = movementStyle
-        self.setImages( **kwArgs )
+        self._steps = 0
+        self._canMove = True
+        self._movementStyle = movementStyle
+        self._images = self._determineImages( kwArgs )
         movementStyle.setMoveObject( self )
 
-        super().__init__( pos, self.getImageOfType( 'image' ), **kwArgs )
-
-
-    def setImages( self, **kwArgs ):
-        self._images = images = {}
-        images['left'] = kwArgs.get( 'imageL', None )
-        images['right'] = kwArgs.get( 'imageR', None )
-        images['up'] = kwArgs.get( 'imageUp', None )
-        images['down'] = kwArgs.get( 'imageDown', None )
-        images['image'] = kwArgs.get( 'image', images['left'] )
-
-
-    def getImageOfType( self, imageType ):
-        image = self._images.get( imageType, None )
-
-        if image:
-            return isinstance( image, ImageAnimation ) and image.getImage() or image
-        elif imageType in ( 'up', 'down' ):
-            horizontalFacing = self.movementStyle.facing( 'horizontal' )
-            image = self._images.get( horizontalFacing, None )
-
-            return isinstance( image, ImageAnimation ) and image.getImage() or image
-        else:
-            return None
-
-
-    def getBounceAmount( self ):
-        # Returns the number of pixels to offset based on the bounce.
-        # Larger bounceRate means a slower bounce.
-        # Larger bounceHeight means a higher bounce.
-        # currentBounce will always be less than bounceRate.
-        movementStyle = self.movementStyle
-        bounceRate = movementStyle.bounceRate
-        bounceHeight = movementStyle.bounceHeight
-
-        if bounceRate == 0 or bounceHeight == 0:
-            return 0
-
-        return int( math.sin( ( math.pi / float( bounceRate ) ) * movementStyle.bounce ) * bounceHeight )
+        super().__init__( pos, **kwArgs )
 
 
     def toggleMovement( self ):
-        self.canMove = not self.canMove
-
-
-    def getImageSwap( self, direction ):
-        return self.getImageOfType( direction )
-
-
-    def checkUpdateObjectImage( self ):
-        # Flip the player image if changed direction.
-        horizontalMovement = self.movementStyle.moving( 'horizontal' )
-        verticalMovement = self.movementStyle.moving( 'vertical' )
-        imageToSwap = None
-
-        # if horizontalMovement or verticalMovement:
-        #    self.attachText( horizontalMovement )
-
-        if horizontalMovement:
-            imageToSwap = self.getImageSwap( horizontalMovement )
-        elif verticalMovement:
-            imageToSwap = self.getImageSwap( verticalMovement )
-
-        self.checkSwapImage( imageToSwap )
+        self._canMove = not self._canMove
 
 
     def setMovement( self, **kwArgs ):
-        self.movementStyle.setMovement( **kwArgs )
+        self._movementStyle.setMovement( **kwArgs )
 
 
     def stopMovement( self, **kwArgs ):
-        self.movementStyle.stopMovement( **kwArgs )
+        self._movementStyle.stopMovement( **kwArgs )
 
 
     def debugCollisionEvent( self, event, label = '' ):
@@ -1214,16 +1183,16 @@ class DynamicObject( ImageObject ):
 
 
     def move( self ):
-        if not self.canMove:
+        if not self._canMove:
             return
 
-        newPos = self.movementStyle.move( self.pos )
+        newPos = self._movementStyle.move( self.pos )
 
         if newPos != self.pos:
             self.setPos( newPos )
-            self.steps += 1
+            self._steps += 1
             # Updating the object image for the direction is another move, which needs collision detection.
-            self.checkUpdateObjectImage()
+            self.checkSwapImage( self._movementStyle.chooseImage( self._images ) )
 
 
     def update( self, camera = ORIGIN, offset = ORIGIN, gameOverMode = False, invulnerableMode = False ):
@@ -1232,7 +1201,7 @@ class DynamicObject( ImageObject ):
         if not gameOverMode and not ( invulnerableMode and flashIsOn ):
             if offset == ORIGIN :
                 # Add jitter or bounce as an offset.
-                offset = Point( 0, - self.getBounceAmount() )
+                offset = Point( 0, - self._movementStyle.getBounceAmount() )
 
             Object.update( self, camera, offset )
 
@@ -1241,6 +1210,13 @@ class DynamicObject( ImageObject ):
         elif invulnerableMode:
             self.setVisible( False )
 
+
+    def _determineImages( self, kwArgs ):
+        images = kwArgs.get( 'image', None )
+        images = images if isinstance( images, ImageCollection ) else ImageCollection()
+        kwArgs['image'] = images['image']
+
+        return images
 
 
 
