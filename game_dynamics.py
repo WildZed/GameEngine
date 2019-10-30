@@ -197,7 +197,7 @@ class RectangleBoundary( Boundary ):
 
 
     def collidesWith( self, obj ):
-        rect = obj.getMaskRect( obj.collisionMask, obj.getOffSetPos() )
+        rect = obj.getMaskRect( obj.getCollisionMask(), obj.getOffSetPos() )
 
         if self.collidesWithRect( rect ):
             collisionData = go.CollisionData( Point( rect.left, rect.top ), rect )
@@ -499,6 +499,14 @@ class GeneralMovementStyle( MovementStyle ):
                 self.sendEvent()
 
         return newPos
+
+
+    def adjustMoveOffset( self, offset ):
+        if not self.moving( 'horizontal' ):
+            offset.x = 0
+
+        if not self.moving( 'vertical' ):
+            offset.y = 0
 
 
 

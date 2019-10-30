@@ -41,12 +41,11 @@ def debugPrintSurface( surface ):
             r, g, b, a = colour = surface.get_at( (x, y) )
 
             if colourKey is None and a == 0 or colour == colourKey:
-                line += ' '
+                line += '.'
             else:
                 line += 'O'
 
         print( line )
-
 
 
 def debugPrintMask( mask ):
@@ -105,6 +104,21 @@ def fillSurfaceMinusRectangle( surface, rect, colour ):
         fillRect.left = rect.right
         # print( 'Fill rect right:', fillRect )
         surface.fill( colour, fillRect )
+
+
+# Create a copy of a surface (image display object) filled by the transparent colour.
+def createTransparentSurfaceCopy( surface ):
+    # width, height = surface.get_size()
+    # Create a surface of the given surface's width and height.
+    # maskSurface = pygame.Surface( ( width, height ) )
+    # For some reason convert() loses all the image data. Oh no it doesn't, I was just not setting the transparent colour correctly.
+    surfaceCopy = surface.copy() # .convert() # pygame.Surface.copy( surface )
+    # maskSurface.set_colorkey( gc.WHITE )
+    transparent = surfaceCopy.get_colorkey() or 0
+    # Fill completely transparent.
+    surfaceCopy.fill( transparent ) # gc.WHITE ) # Transparent.
+
+    return surfaceCopy
 
 
 fontCache = FontCache()

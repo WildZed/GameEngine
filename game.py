@@ -174,45 +174,24 @@ class Game( object ):
             self.dragObject = event.obj
 
 
-    def movePlayerToScene( self, player, portal, scene, otherPortal ):
-        gameMap = self.gameMap
-
-        if not gameMap.changeScene( scene ):
-            return
-
-        viewPort = self.viewPort
-        scene = gameMap.getScene( scene ) # Name or scene.
-        player.moveToScene( scene )
-        otherPortal = scene.getObject( otherPortal )
-        offset = portal.getCollisionRectCentre() - player.getCollisionRectCentre()
-
-        if not player.movementStyle.moving( 'horizontal' ):
-            offset.x = 0
-
-        if not player.movementStyle.moving( 'vertical' ):
-            offset.y = 0
-
-        newPos = otherPortal.getPos() + offset
-        player.setPos( newPos )
-        viewPort.adjustCamera( newPos )
-
-
     def moveSpriteToScene( self, sprite, portal, scene, otherPortal ):
-        gameMap = self.gameMap
-        viewPort = self.viewPort
-        scene = gameMap.getScene( scene ) # Name or scene.
+        scene = self.gameMap.getScene( scene ) # Name or scene.
         sprite.moveToScene( scene )
         otherPortal = scene.getObject( otherPortal )
         offset = portal.getCollisionRectCentre() - sprite.getCollisionRectCentre()
-
-        if not sprite.movementStyle.moving( 'horizontal' ):
-            offset.x = 0
-
-        if not sprite.movementStyle.moving( 'vertical' ):
-            offset.y = 0
-
+        sprite.adjustMoveOffset( offset )
         newPos = otherPortal.getPos() + offset
         sprite.setPos( newPos )
+
+        return newPos
+
+
+    def movePlayerToScene( self, player, portal, scene, otherPortal ):
+        gameMap = self.gameMap
+
+        if gameMap.changeScene( scene ):
+            newPos = self.moveSpriteToScene( player, portal, scene, otherPortal )
+            self.viewPort.adjustCamera( newPos )
 
 
     # Generic game event processing.

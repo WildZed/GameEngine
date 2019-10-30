@@ -83,6 +83,10 @@ class ImageAnimation( object ):
         self._counter = 0
 
 
+    def asImageList( self ):
+        return self._images
+
+
     def advance( self ):
         self._counter += 1
 
@@ -117,6 +121,18 @@ class ImageCollection( object ):
 
         # Add a default image if one doesn't already exist.
         self._images['image'] = images.get( 'image', next( iter( images.values() ), None ) )
+
+
+    def asImageList( self ):
+        images = []
+
+        for image in self._images.values():
+            if isinstance( image, pygame.Surface ):
+                images.append( image )
+            else:
+                images.extend( image.asImageList() )
+
+        return images
 
 
     def getImage( self, key, advance = True ):
@@ -183,15 +199,16 @@ class Object( object ):
         # The mask used for interaction detection.
         self.interactionMask = None
         # The mask used for collision detection.
-        self.collisionMask = None
+        self._collisionMask = None
         # Keep hold of the surface used to create the mask for debugging purposes.
-        self.collisionMaskSurface = None
+        self._collisionMaskSurface = None
         # The object type and collision mask used to check if objects can collide.
         self.objectProperties = kwArgs.get( 'objectProperties', InteractionType.SOLID )
         self.interactionTypes = kwArgs.get( 'interactionTypes', InteractionType.SOLID | InteractionType.OVERLAY | InteractionType.GHOST )
         self.collisionTypes = kwArgs.get( 'collisionTypes', InteractionType.IMPERVIOUS | InteractionType.HARD | InteractionType.SOLID )
+        self._staticCollisionMask = kwArgs.get( 'staticCollisionMask', False )
         # Surface created first. Rects are calculated from the surface width and height.
-        self.updateSurface()
+        self.updateSurface( forceUpdateCollisionMask=True )
         self.updateRect()
 
 
@@ -246,22 +263,16 @@ class Object( object ):
         self.collisionTypes = collisionTypes
 
 
-    # Insert the supplied keyword unless set from the constructor.
-    def mergeKwArg( self, key, value, kwArgs ):
-        kwArgs[key] = kwArgs.get( key, value )
-        # print( "mergeKwArg %s %s" % ( key, kwArgs[key] ) )
-
-
     def mergeOverlayKwArgs( self, kwArgs ):
-        self.mergeKwArg( 'objectProperties', InteractionType.OVERLAY, kwArgs )
-        self.mergeKwArg( 'interactionTypes', InteractionType.IMPERVIOUS | InteractionType.HARD | InteractionType.SOLID, kwArgs )
-        self.mergeKwArg( 'collisionTypes', InteractionType.IMPERVIOUS | InteractionType.HARD, kwArgs )
+        kwArgs.setdefault( 'objectProperties', InteractionType.OVERLAY )
+        kwArgs.setdefault( 'interactionTypes', InteractionType.IMPERVIOUS | InteractionType.HARD | InteractionType.SOLID )
+        kwArgs.setdefault( 'collisionTypes', InteractionType.IMPERVIOUS | InteractionType.HARD )
 
 
     def mergeNonInteractingKwArgs( self, kwArgs ):
-        self.mergeKwArg( 'objectProperties', InteractionType.NONE, kwArgs )
-        self.mergeKwArg( 'interactionTypes', InteractionType.NONE, kwArgs )
-        self.mergeKwArg( 'collisionTypes', InteractionType.NONE, kwArgs )
+        kwArgs.setdefault( 'objectProperties', InteractionType.NONE )
+        kwArgs.setdefault( 'interactionTypes', InteractionType.NONE )
+        kwArgs.setdefault( 'collisionTypes', InteractionType.NONE )
 
 
     def moveToScene( self, scene ):
@@ -319,42 +330,38 @@ class Object( object ):
 
 
     # Get a mask surface given a surface (image display object).
-    def getMaskSurface( self, surface ):
-        width, height = surface.get_size()
-        # Create a surface of the given surface's width and height.
-        # maskSurface = pygame.Surface( ( width, height ) )
-        # For some reason convert() loses all the image data. Oh no it doesn't, I was just not setting the transparent colour correctly.
-        maskSurface = surface.copy() # .convert() # pygame.Surface.copy( surface )
-        # maskSurface.set_colorkey( gc.WHITE )
-        transparent = maskSurface.get_colorkey() or 0
-        # Fill completely transparent.
-        maskSurface.fill( transparent ) # gc.WHITE ) # Transparent.
-        # Get rect and collision rect relative to ORIGIN for blitting just the collision part of the image.
-        rect = self.getRect()
-        colRect = self.getCollisionRect( rect )
-        relTop = colRect.top - rect.top
-        relLeft = colRect.left - rect.left
-        # Area of surface to blit onto maskSurface.
-        blitArea = ( relLeft, relTop, colRect.width, colRect.height )
-        # Destination in maskSurface needs to match area.
-        dest = ( relLeft, relTop )
-        maskSurface.blit( surface, dest, area=blitArea )
+    def getMaskSurface( self, surfaces = None ):
+        if not surfaces:
+            surfaces = ( self.surface, )
 
-        # if isinstance( self, Portal ): # width < 80:
-        #     print( self.__class__.__name__, self.name )
-        #     print( 'Size:', width, height )
-        #     print( 'Blit area:', blitArea )
-        #     print( 'Colour key:', maskSurface.get_colorkey() )
+        # Area of surface to blit onto maskSurface.
+        blitArea = self.getCollisionArea()
+        # Destination in maskSurface needs to match area.
+        dest = blitArea[0:2] # ( relLeft, relTop )
+        # Assuming that all surfaces are the same size.
+        maskSurface = gu.createTransparentSurfaceCopy( surfaces[0] )
+
+        for surface in surfaces:
+            maskSurface.blit( surface, dest, area=blitArea )
+
+        # if isinstance( self, Player ):
+        #     print( "Player transparent surface:" )
         #     gu.debugPrintSurface( maskSurface )
 
         return maskSurface
 
 
-    def updateSurface( self ):
+    def updateSurface( self, forceUpdateCollisionMask = False ):
         self.surface = self.getSurface()
-        self.collisionMaskSurface = self.getMaskSurface( self.surface )
-        self.collisionMask = pygame.mask.from_surface( self.collisionMaskSurface )
         self.interactionMask = pygame.mask.from_surface( self.surface )
+
+        if forceUpdateCollisionMask or not self._staticCollisionMask:
+            self.updateCollisionMask()
+
+
+    def updateCollisionMask( self ):
+        self._collisionMaskSurface = self.getMaskSurface()
+        self._collisionMask = pygame.mask.from_surface( self._collisionMaskSurface )
 
 
     def getPositionStyleOffset( self, camera = ORIGIN, offset = ORIGIN ):
@@ -491,6 +498,10 @@ class Object( object ):
         return self.getOffSetRect( offset )
 
 
+    def getCollisionMask( self ):
+        return self._collisionMask
+
+
     def getCollisionRect( self, rect ):
         collisionSpec = self._collisionSpecification
 
@@ -508,6 +519,16 @@ class Object( object ):
         colRect.width = int( colRect.width * collisionSpec.width )
 
         return colRect
+
+
+    def getCollisionArea( self ):
+        # Get rect and collision rect relative to ORIGIN for blitting just the collision part of the image.
+        rect = self.getRect()
+        colRect = self.getCollisionRect( rect )
+        relTop = colRect.top - rect.top
+        relLeft = colRect.left - rect.left
+
+        return ( relLeft, relTop, colRect.width, colRect.height )
 
 
     def getViewportRect( self, camera = ORIGIN, offset = ORIGIN ):
@@ -653,18 +674,18 @@ class Object( object ):
 
     def collidesWithCollisionMask( self, obj ):
         offset = self.getRelativeOffset( obj ).asTuple()
-        overlapOffset = self.collisionMask.overlap( obj.collisionMask, offset )
+        overlapOffset = self._collisionMask.overlap( obj._collisionMask, offset )
         collisionData = None
 
         if overlapOffset:
             overlapOffset = Point( overlapOffset ) # self.getOffSetPos() +
-            overlapMask = self.collisionMask.overlap_mask( obj.collisionMask, offset )
+            overlapMask = self._collisionMask.overlap_mask( obj._collisionMask, offset )
             overlapRect = self.getMaskRect( overlapMask, overlapOffset )
             collisionData = CollisionData( overlapOffset, overlapRect )
 
         # print( "collidesWithRect %s" % collides )
 
-        # numOverlapPixels = self.collisionMask.overlap_area( obj.collisionMask, offset )
+        # numOverlapPixels = self._collisionMask.overlap_area( obj._collisionMask, offset )
         #  = ( numOverlapPixels > 0 )
 
         return collisionData
@@ -796,7 +817,7 @@ class Object( object ):
         viewPortCls.sdrawBox( surface, vpRect, colour=self.colour )
         viewPortCls.sdrawBox( surface, vpColRect, colour=self.colour )
         # Hmmmm, for some unknown reason convert() makes the mask surface completely invisible, unless it is a non-per-pixel alpha surface, in which case it is completely black.
-        collisionMaskSurface = self.collisionMaskSurface # .convert()
+        collisionMaskSurface = self._collisionMaskSurface # .convert()
         surface.blit( collisionMaskSurface, maskVpRect )
 
 
@@ -863,10 +884,13 @@ class ImageObject( Object ):
         super().__init__( pos, **kwArgs )
 
 
-    def getSurface( self ):
+    def getSurface( self, image = None ):
+        if not image:
+            image = self._image
+
         width = int( self.getWidth() )
         height = int( self.getHeight() )
-        surface = pygame.transform.scale( self._image, ( width, height ) )
+        surface = pygame.transform.scale( image, ( width, height ) )
 
         # This prevents collision detection working properly for some reason.
         # It's not supposed to have any effect on per pixel alpha surfaces.
@@ -948,10 +972,10 @@ class Box( Object ):
 
 class Border( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
-        self.mergeKwArg( 'objectProperties', InteractionType.IMPERVIOUS, kwArgs )
-        self.mergeKwArg( 'interactionTypes', InteractionType.NONE, kwArgs )
-        self.mergeKwArg( 'collisionTypes', InteractionType.IMPERVIOUS | InteractionType.SOLID | InteractionType.OVERLAY | InteractionType.GHOST, kwArgs )
-        self.mergeKwArg( 'drawOrder', 0, kwArgs )
+        kwArgs.setdefault( 'objectProperties', InteractionType.IMPERVIOUS )
+        kwArgs.setdefault( 'interactionTypes', InteractionType.NONE )
+        kwArgs.setdefault( 'collisionTypes', InteractionType.IMPERVIOUS | InteractionType.SOLID | InteractionType.OVERLAY | InteractionType.GHOST )
+        kwArgs.setdefault( 'drawOrder', 0 )
         super().__init__( pos, image, **kwArgs )
         # print( "self.objectProperties %d" % self.objectProperties )
 
@@ -960,9 +984,9 @@ class Border( ImageObject ):
 
 class BackGround( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
-        self.mergeKwArg( 'objectProperties', InteractionType.HARD, kwArgs )
-        self.mergeKwArg( 'interactionTypes', InteractionType.NONE, kwArgs )
-        self.mergeKwArg( 'drawOrder', 1, kwArgs )
+        kwArgs.setdefault( 'objectProperties', InteractionType.HARD )
+        kwArgs.setdefault( 'interactionTypes', InteractionType.NONE )
+        kwArgs.setdefault( 'drawOrder', 1 )
         super().__init__( pos, image, **kwArgs )
 
 
@@ -971,7 +995,7 @@ class BackGround( ImageObject ):
 class SoftBackGround( ImageObject ):
     def __init__( self, pos, image, **kwArgs ):
         self.mergeNonInteractingKwArgs( kwArgs )
-        self.mergeKwArg( 'drawOrder', 1, kwArgs )
+        kwArgs.setdefault( 'drawOrder', 1 )
         super().__init__( pos, image, **kwArgs )
 
 
@@ -981,10 +1005,10 @@ class Fog( ImageObject ):
     pickPriority = 1
 
     def __init__( self, pos, image, **kwArgs ):
-        self.mergeKwArg( 'objectProperties', InteractionType.FOG, kwArgs )
-        self.mergeKwArg( 'interactionTypes', InteractionType.NONE, kwArgs )
-        self.mergeKwArg( 'collisionTypes', InteractionType.NONE, kwArgs )
-        self.mergeKwArg( 'drawOrder', 8, kwArgs )
+        kwArgs.setdefault( 'objectProperties', InteractionType.FOG )
+        kwArgs.setdefault( 'interactionTypes', InteractionType.NONE )
+        kwArgs.setdefault( 'collisionTypes', InteractionType.NONE )
+        kwArgs.setdefault( 'drawOrder', 8 )
         super().__init__( pos, image, **kwArgs )
 
 
@@ -1017,7 +1041,7 @@ class Shop( ImageObject ):
     pickPriority = 2
 
     def __init__( self, pos, image, **kwArgs ):
-        self.mergeKwArg( 'drawOrder', 2, kwArgs )
+        kwArgs.setdefault( 'drawOrder', 2 )
         super().__init__( pos, image, **kwArgs )
 
 
@@ -1028,9 +1052,8 @@ class Digspot( ImageObject ):
 
     def __init__( self, pos, image, **kwArgs ):
         self.mergeOverlayKwArgs( kwArgs )
-        self.mergeKwArg( 'drawOrder', 2, kwArgs )
+        kwArgs.setdefault( 'drawOrder', 2 )
         super().__init__( pos, image, **kwArgs )
-
         self.digCount = 0
 
 
@@ -1041,7 +1064,7 @@ class Bush( ImageObject ):
 
     def __init__( self, pos, image, **kwArgs ):
         # Objects with the same draw order will go behind each other based on the y coordinate.
-        # self.mergeKwArg( 'drawOrder', 2, kwArgs )
+        # kwArgs.setdefault( 'drawOrder', 2 )
         super().__init__( pos, image, **kwArgs )
 
 
@@ -1062,7 +1085,7 @@ class Arrow( ImageObject ):
 
     def __init__( self, pos, image, **kwArgs ):
         self.mergeOverlayKwArgs( kwArgs )
-        self.mergeKwArg( 'drawOrder', 2, kwArgs )
+        kwArgs.setdefault( 'drawOrder', 2 )
         super().__init__( pos, image, **kwArgs )
 
 
@@ -1073,7 +1096,7 @@ class Monster( ImageObject ):
 
     def __init__( self, pos, image, **kwArgs ):
         self.mergeOverlayKwArgs( kwArgs )
-        self.mergeKwArg( 'drawOrder', 20, kwArgs )
+        kwArgs.setdefault( 'drawOrder', 20 )
         super().__init__( pos, image, **kwArgs )
 
 
@@ -1149,13 +1172,29 @@ class DynamicObject( ImageObject ):
     pickPriority = 8
 
     def __init__( self, pos, movementStyle, **kwArgs ):
-        self._steps = 0
+        # Can't get property setter to work.
+        self.steps = 0
         self._canMove = True
         self._movementStyle = movementStyle
         self._images = self._determineImages( kwArgs )
         movementStyle.setMoveObject( self )
-
+        kwArgs.setdefault( 'staticCollisionMask', True )
         super().__init__( pos, **kwArgs )
+
+
+    # @property
+    # def steps( self ):
+    #     return self._steps
+    #
+    #
+    # @steps.setter
+    # def steps( self, steps ):
+    #     print( "Setting steps to:", steps )
+    #     self._steps = steps
+
+
+    def getMaskSurface( self ):
+        return super().getMaskSurface( [ self.getSurface( image ) for image in self._images.asImageList() ] )
 
 
     def toggleMovement( self ):
@@ -1182,6 +1221,10 @@ class DynamicObject( ImageObject ):
         gameMap.debugPos( 'collisionPoint', collisionPoint )
 
 
+    def adjustMoveOffset( self, offset ):
+        self._movementStyle.adjustMoveOffset( offset )
+
+
     def move( self ):
         if not self._canMove:
             return
@@ -1190,7 +1233,7 @@ class DynamicObject( ImageObject ):
 
         if newPos != self.pos:
             self.setPos( newPos )
-            self._steps += 1
+            self.steps += 1
             # Updating the object image for the direction is another move, which needs collision detection.
             self.checkSwapImage( self._movementStyle.chooseImage( self._images ) )
 
@@ -1232,9 +1275,9 @@ class Sprite( DynamicObject ):
 
 class GhostSprite( Sprite ):
     def __init__( self, pos, movementStyle, **kwArgs ):
-        self.mergeKwArg( 'objectProperties', InteractionType.GHOST, kwArgs )
-        self.mergeKwArg( 'interactionTypes', InteractionType.SOLID | InteractionType.OVERLAY | InteractionType.GHOST, kwArgs )
-        self.mergeKwArg( 'collisionTypes', InteractionType.IMPERVIOUS | InteractionType.GHOST, kwArgs )
+        kwArgs.setdefault( 'objectProperties', InteractionType.GHOST )
+        kwArgs.setdefault( 'interactionTypes', InteractionType.SOLID | InteractionType.OVERLAY | InteractionType.GHOST )
+        kwArgs.setdefault( 'collisionTypes', InteractionType.IMPERVIOUS | InteractionType.GHOST )
         Sprite.__init__( self, pos, movementStyle, **kwArgs )
 
 
