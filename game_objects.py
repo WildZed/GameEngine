@@ -185,12 +185,12 @@ class Object( object ):
         self.updateCallback = kwArgs.get( 'updateCallback', None )
         self.lifetime = kwArgs.get( 'lifetime', None )
 
-        # The object's rectangle containing all of its shape.
+        # The object's world coordinate rectangle containing all of its shape.
         self.rect = None
         # The collision rectangle in world coordinates.
         self.colRect = None
         self._collisionSpecification = kwArgs.get( 'collisionSpecification', None )
-        # Viewport coordinate rectangle.
+        # The object's viewport coordinate rectangle.
         self.vpRect = None
         # self.vpColRect = None
         self.attachedObjects = []
@@ -380,12 +380,13 @@ class Object( object ):
 
     def updateRect( self, camera = ORIGIN, offset = ORIGIN ):
         # Normally the offset is ORIGIN and the world coordinate rectangle is returned.
+        # Only uses camera if it is a viewport position style object.
         self.rect = self.getRect( camera, offset )
-        self.colRect = self.getCollisionRect( self.rect )
         self.vpRect = self.getViewportRect( camera, offset )
+        self.colRect = self.getCollisionRect( self.rect )
 
 
-    # Get the object's surface top left position given an offset
+    # Get the object's surface top left (viewport) position given an offset
     # from the object's world coordinate position.
     # This is usually used to find where to draw the surface,
     # which is from top left.
@@ -399,12 +400,14 @@ class Object( object ):
         return offset
 
 
+    # Get the object's rectangle viewport coordinate and offset from its world coordinate position.
     def getOffSetRect( self, offset = ORIGIN ):
         offSetPos = self.getOffSetPos( offset )
 
         return pygame.Rect( offSetPos.x, offSetPos.y, self.width, self.height )
 
 
+    # Offset a rectangle relative to this object's position in viewport coordinates.
     def getOffSetOtherRect( self, rect, offset = ORIGIN ):
         offSetPos = self.getOffSetPos( offset )
 
@@ -491,10 +494,20 @@ class Object( object ):
         return attachedObjectList
 
 
+    # Get the object's rectangle given an optional camera shift and/or additional offset.
+    # With no offset, it gives the rectangle in world coordinates.
     def getRect( self, camera = ORIGIN, offset = ORIGIN ):
         offset = self.getPositionStyleOffset( camera, offset )
 
         # Normally the offset is ORIGIN and the world coordinate rectangle is returned.
+        return self.getOffSetRect( offset )
+
+
+    # Get the object's rectangle in viewport coordinates given camera shift and/or additional offset.
+    def getViewportRect( self, camera = ORIGIN, offset = ORIGIN ):
+        offset = self.getViewportPositionStyleOffset( camera, offset )
+
+        # self.vpRect = self.surface.get_rect()
         return self.getOffSetRect( offset )
 
 
@@ -529,13 +542,6 @@ class Object( object ):
         relLeft = colRect.left - rect.left
 
         return ( relLeft, relTop, colRect.width, colRect.height )
-
-
-    def getViewportRect( self, camera = ORIGIN, offset = ORIGIN ):
-        offset = self.getViewportPositionStyleOffset( camera, offset )
-
-        # self.vpRect = self.surface.get_rect()
-        return self.getOffSetRect( offset )
 
 
     def getSceneCollisions( self ):
@@ -1136,12 +1142,13 @@ class Text( Object ):
 # Creates static text in viewport coordinates.
 class StaticText( Text ):
     def __init__( self, pos, text, **kwArgs ):
+        kwArgs.setdefault( 'positionStyle', 'viewport_top_left' )
         Text.__init__( self, pos, text, **kwArgs )
 
 
-    def update( self, camera = ORIGIN, offset = ORIGIN ):
-        # Call the base class, but don't use the offset.
-        Text.update( self )
+    # def update( self, camera = ORIGIN, offset = ORIGIN ):
+    #     # Call the base class, but don't use the offset.
+    #     Text.update( self, camera )
 
 
 
