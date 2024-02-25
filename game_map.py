@@ -130,27 +130,34 @@ class ObjectDrawSortKey:
 class ObjectStore( object ):
     def __init__( self, parentMap ):
         self.parentMap = parentMap
-        self.objectLists = {}
+        self._objectLists = {}
         self._objectTypes = None
-        self.drawList = []
+        self._drawList = []
 
 
     def getMap( self ):
         return self.parentMap
 
 
-    def addObject( self, obj, scene = None ):
+    def getObjectList( self, obj, create = False ):
         objType = obj.__class__
-        objLists = self.objectLists
+        objLists = self._objectLists
 
         if objType in objLists:
             objList = objLists[objType]
-        else:
+        elif create:
             objLists[objType] = objList = []
+            # Reset object types list, which will be lazily re-generated when required.
             self._objectTypes = None
+        else:
+            objList = []
 
-        objList.append( obj )
-        self.drawList.append( obj )
+        return objList
+
+
+    def addObject( self, obj, scene = None ):
+        self.getObjectList( obj, create=True ).append( obj )
+        self._drawList.append( obj )
         obj.setScene( scene )
 
         return obj
@@ -158,18 +165,15 @@ class ObjectStore( object ):
 
     # Removes the object from the ObjectStore but does not delete it.
     def removeObject( self, obj ):
-        objType = obj.__class__
-        objLists = self.objectLists
+        objList = self.getObjectList( obj )
 
-        if objType in objLists:
-            objList = objLists[objType]
-
+        if objList:
             objList.remove( obj )
-            self.drawList.remove( obj )
+            self._drawList.remove( obj )
 
 
     def deleteAllObjectsOfType( self, objType ):
-        objLists = self.objectLists
+        objLists = self._objectLists
 
         if objType in objLists:
             del objLists[objType]
@@ -181,14 +185,14 @@ class ObjectStore( object ):
         objectTypes = self._objectTypes
 
         if not objectTypes:
-            objectTypes = list( self.objectLists.keys() )
+            objectTypes = list( self._objectLists.keys() )
             objectTypes.sort( key=lambda objectType : objectType.pickPriority, reverse=True )
 
         return objectTypes
 
 
     def objectsOfType( self, objType ):
-        objLists = self.objectLists
+        objLists = self._objectLists
 
         if objType in objLists:
             return objLists[objType]
@@ -197,7 +201,7 @@ class ObjectStore( object ):
 
 
     def getObject( self, objOrName ):
-        for objList in self.objectLists.values():
+        for objList in self._objectLists.values():
             for obj in objList:
                 if isinstance( objOrName, str ):
                     if obj.name == objOrName:
@@ -210,7 +214,7 @@ class ObjectStore( object ):
 
 
     def update( self, camera, updateOrder = None ):
-        objLists = self.objectLists
+        objLists = self._objectLists
 
         if not updateOrder:
             # Non-deterministic order.
@@ -228,7 +232,7 @@ class ObjectStore( object ):
 
 
     # def move( self ):
-    #     objLists = self.objectLists
+    #     objLists = self._objectLists
     #     objTypes = objLists.keys()
     #
     #     for objType in objTypes:
@@ -240,7 +244,7 @@ class ObjectStore( object ):
 
 
     def sortObjLists( self, reverse=False ):
-        objLists = self.objectLists
+        objLists = self._objectLists
 
         for objType in objLists.keys():
             objList = objLists[objType]
@@ -248,9 +252,9 @@ class ObjectStore( object ):
 
 
     def getSortedDrawList( self ):
-        drawList = copy.copy( self.drawList )
+        drawList = copy.copy( self._drawList )
 
-        for obj in self.drawList:
+        for obj in self._drawList:
             drawList.extend( obj.getAssociatedObjects() )
 
         drawList.sort( key=lambda obj : ObjectDrawSortKey( obj ) ) #, reverse=reverse )
@@ -269,7 +273,7 @@ class ObjectStore( object ):
 
 
     def drawByObjectTypeOrder( self, viewPort, objTypes = None, debugDraw = False ):
-        objLists = self.objectLists
+        objLists = self._objectLists
         currentScene = self.parentMap.scene
         viewRect = viewPort.getCameraRect()
 
@@ -296,7 +300,7 @@ class ObjectStore( object ):
 
     def collides( self, testObj ):
         event = None
-        objLists = self.objectLists
+        objLists = self._objectLists
         objTypes = self.prioritisedObjectTypes()
 
         for objType in objTypes:
@@ -322,7 +326,7 @@ class ObjectStore( object ):
 
     def collidesWithPoint( self, pos, useFullRect = False ):
         event = None
-        objLists = self.objectLists
+        objLists = self._objectLists
         objTypes = self.prioritisedObjectTypes()
 
         for objType in objTypes:
@@ -341,7 +345,7 @@ class ObjectStore( object ):
 
     def getAllCollisions( self, testObj ):
         collisionEvents = []
-        objLists = self.objectLists
+        objLists = self._objectLists
         objTypes = objLists.keys()
 
         for objType in objTypes:
@@ -491,9 +495,12 @@ class Map( object ):
         return True
 
 
-    def addObject( self, obj ):
+    def addObject( self, obj, offset = None ):
         self.ensureScene()
         self.scene.addObject( obj )
+
+        if offset:
+            obj.pos += offset
 
         if hasattr( obj, 'move' ):
             self.movingObjects.append( obj )
@@ -587,14 +594,14 @@ class Map( object ):
         self.ensureScene()
 
         if key == 'player':
-            # return self.__dict__['players'].objectLists[go.Player][0]
+            # return self.__dict__['players']._objectLists[go.Player][0]
             # Need to check in all scenes for the player, or the movingObjects list.
-            return self.__dict__['scene'].objectLists[go.Player][0]
+            return self.__dict__['scene']._objectLists[go.Player][0]
         elif key == 'sprites':
             # Currently just return sprites in the current scene, but it could gather from all scenes.
-            return self.__dict__['scene'].objectLists[go.Sprite]
+            return self.__dict__['scene']._objectLists[go.Sprite]
         elif key == 'score':
-            return self.__dict__['overlays'].objectLists[go.Score][0]
+            return self.__dict__['overlays']._objectLists[go.Score][0]
         elif key == 'backGroundColour':
             return self.__dict__['scene'].backGroundColour
 

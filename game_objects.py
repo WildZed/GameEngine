@@ -427,7 +427,16 @@ class Object( object ):
         return objPos - selfPos
 
 
-    def attachObject( self, obj, style = 'tight' ):
+    def attachObject( self, obj, style = 'tight', pos = None ):
+        if obj.scene:
+            obj.scene.removeObject( obj )
+
+            if pos is None:
+                obj.pos = ORIGIN
+
+        if pos:
+            obj.pos = pos
+
         if 'loose' == style or self.drawOrder != obj.drawOrder:
             self.associatedObjects.append( obj )
         else:
@@ -481,15 +490,16 @@ class Object( object ):
         return attachedObject
 
 
-    def detachAllObjects( self ):
+    def detachAllObjects( self, includeAssociated = False ):
         attachedObjectList = self.attachedObjects
-        attachedObjectList.extend( self.associatedObjects )
+        self.attachedObjects = []
+
+        if includeAssociated:
+            attachedObjectList.extend( self.associatedObjects )
+            self.associatedObjects = []
 
         for obj in attachedObjectList:
             obj.parent = None
-
-        self.attachedObjects = []
-        self.associatedObjects = []
 
         return attachedObjectList
 
@@ -802,8 +812,11 @@ class Object( object ):
             # Faster method to non-per-pixel alpha surface.
             clippedVpRect = vpRect.clip( surface.get_rect() )
             subSurface = surface.subsurface( clippedVpRect ).convert_alpha()
-            subSurface.blit( self.surface, vpRect )
+            subSurface.blit( self.surface, (0, 0) )
             # print( 'clippedRect:', clippedVpRect )
+            # if isinstance( self, Player ):
+            #     print( "Player:" )
+            #     gu.debugPrintSurface( self.surface )
             surface.blit( subSurface, clippedVpRect ) #, special_flags=BLEND_RGBA_MULT )
         else:
             # Basic method.
@@ -1022,16 +1035,25 @@ class Fog( ImageObject ):
         vpRect = self.vpRect
         colour = self.surface.get_at( ( 0, 0 ) )
 
-        if True:
+        if False:
             # The fast method. Fill all other areas of the surface with the fog colour.
             gu.fillSurfaceMinusRectangle( surface, vpRect, colour )
+            # Clip the fog viewport rectangle by the surface we're drawing to.
             clippedVpRect = vpRect.clip( surface.get_rect() )
+            # Make reference sub-set surface with per pixel alpha.
+            # WARNING: Per pixel alpha drawing is SLOW.
+            # Blit doesn't blit to referenced display surface if it is hardward accelerated.
             subSurface = surface.subsurface( clippedVpRect ).convert_alpha()
-            objClippedRect = vpRect.copy()
+            # objClippedRect = vpRect.copy()
+            # Create a clipped fog viewport rectangle, relative to the object's surface.
             objClippedRect = pygame.Rect( clippedVpRect.left - vpRect.left, clippedVpRect.top - vpRect.top, clippedVpRect.width, clippedVpRect.height )
             # print( 'obj clipped rect:', objClippedRect )
+            # Make reference sub-set fog surface.
             objSubSurface = self.surface.subsurface( objClippedRect )
+            # Blit only the remaining clipped area of the fog to the clipped sub-surface.
             subSurface.blit( objSubSurface, (0, 0) )
+            # Should be unnecessary because the sub-surface is a reference copy. Except that it doesn't work that way.
+            # Apparently only works for the display surface if it is not hardward accelerated.
             surface.blit( subSurface.convert(), clippedVpRect ) #, special_flags=BLEND_RGBA_MULT )
         else:
             # The slow method. Fill a copy window surface with the fog colour and blit (draw) the smaller fog surface onto it with per pixel alpha.
